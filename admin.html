@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>健保申請 行政清單</title>
+<meta name="theme-color" content="#1d4ed8">
+<style>
+:root{
+  --bg:#f3f4f6;--surface:#ffffff;--surface2:#f8fafc;--border:#d6dbe3;
+  --text:#1f2937;--text2:#374151;--muted:#6b7280;--faint:#9ca3af;
+  --primary:#1d4ed8;--primary-d:#1e40af;--primary-soft:#e8eefc;--primary-rgb:29,78,216;
+  --ok:#15803d;--ok-soft:#e7f5ea;--warn:#b45309;--warn-soft:#fdf3e3;--danger:#b91c1c;--danger-soft:#fbe9e9;
+  --new:#fff7d6;--radius:12px;--fs:17px;
+}
+*{box-sizing:border-box}
+html{font-size:var(--fs)}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;line-height:1.45}
+header{background:var(--primary);color:#eef2ff;padding:.7rem 1rem;display:flex;align-items:center;gap:.6rem;position:sticky;top:0;z-index:5}
+header h1{font-size:1.05rem;margin:0;font-weight:600;flex:1}
+header button{background:rgba(255,255,255,.15);border:0;color:#eef2ff;border-radius:8px;padding:.35rem .6rem;font-size:.9rem}
+main{max-width:980px;margin:0 auto;padding:.9rem}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:.9rem;margin-bottom:.9rem}
+label.l{display:block;font-size:.9rem;color:var(--muted);margin:.2rem 0 .3rem}
+input[type=text],input[type=password],input[type=date],input[type=search],select,textarea{width:100%;font-size:1rem;padding:.55rem .7rem;border:1px solid var(--border);border-radius:10px;background:var(--surface2);color:var(--text)}
+input:focus,select:focus,textarea:focus{outline:2px solid rgba(var(--primary-rgb),.35);border-color:var(--primary)}
+.btn{border:0;border-radius:10px;padding:.6rem 1rem;font-size:1rem;background:var(--primary);color:#fff;font-weight:600}
+.btn:disabled{background:var(--faint)}
+.btn2{border:1px solid var(--border);background:var(--surface);color:var(--primary-d);border-radius:10px;padding:.5rem .8rem;font-size:.95rem}
+.row{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap}
+.row>*{flex:1}
+.chips{display:flex;flex-wrap:wrap;gap:.4rem}
+.chip{border:1px solid var(--border);background:var(--surface2);color:var(--text2);border-radius:999px;padding:.35rem .8rem;font-size:.92rem;cursor:pointer;user-select:none}
+.chip.on{background:var(--primary);color:#fff;border-color:var(--primary)}
+.badge{background:var(--danger);color:#fff;border-radius:999px;padding:0 .5rem;font-size:.8rem;margin-left:.3rem}
+table{width:100%;border-collapse:collapse;font-size:.95rem}
+th,td{text-align:left;padding:.5rem .45rem;border-bottom:1px solid var(--border);vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:.8rem;white-space:nowrap}
+tr.r{cursor:pointer}
+tr.r:hover{background:var(--primary-soft)}
+tr.new{background:var(--new)}
+tr.sel{outline:2px solid var(--primary)}
+.st{display:inline-block;padding:.1rem .5rem;border-radius:999px;font-size:.8rem;font-weight:600;white-space:nowrap}
+.st-wait{background:var(--warn-soft);color:var(--warn)}
+.st-sent{background:var(--primary-soft);color:var(--primary-d)}
+.st-ok{background:var(--ok-soft);color:var(--ok)}
+.st-no{background:var(--danger-soft);color:var(--danger)}
+.st-q{background:var(--danger-soft);color:var(--danger)}
+.note{font-size:.85rem;color:var(--muted)}
+.toast{position:fixed;top:4.2rem;left:50%;transform:translateX(-50%);background:var(--ok);color:#fff;padding:.7rem 1.1rem;border-radius:10px;font-size:1rem;z-index:9;box-shadow:0 4px 14px rgba(0,0,0,.2);max-width:90vw}
+.toast.err{background:var(--danger)}
+.toast.warn{background:var(--warn)}
+.hid{display:none}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.6rem}
+.kv{font-size:.95rem}.kv b{color:var(--muted);font-weight:600;margin-right:.3rem}
+dialog{border:0;border-radius:var(--radius);padding:1rem;max-width:520px;width:92vw}
+dialog::backdrop{background:rgba(0,0,0,.35)}
+@media (max-width:640px){.hide-sm{display:none}}
+</style>
+</head>
+<body>
+<header>
+  <h1>健保事前審查 · 行政清單 <span class="badge hid" id="badge">0</span></h1>
+  <span class="note" id="who" style="color:#c7d2fe"></span>
+  <button id="btnNotif" title="開啟瀏覽器通知">🔔</button>
+  <button id="btnSet" title="設定">⚙</button>
+  <button id="btnLogout" class="hid">登出</button>
+</header>
+
+<main id="login">
+  <div class="card" style="max-width:420px;margin:2rem auto">
+    <h2 style="margin:.2rem 0 .8rem;font-size:1.15rem">行政人員登入</h2>
+    <label class="l">姓名</label><input type="text" id="lname" autocomplete="name">
+    <label class="l">行政密碼</label><input type="password" id="lcode" autocomplete="current-password">
+    <div class="note" style="margin:.5rem 0">密碼由承辦醫師提供。登入後可看到所有登錄案件並回填處理狀態。</div>
+    <button class="btn" id="btnLogin" style="width:100%;margin-top:.4rem">登入</button>
+  </div>
+</main>
+
+<main id="app" class="hid">
+  <div class="card">
+    <div class="row">
+      <div class="chips" id="filters" style="flex:3">
+        <span class="chip on" data-f="待送">待送</span><span class="chip" data-f="已送審">已送審</span><span class="chip" data-f="補件">補件</span><span class="chip" data-f="核准">核准</span><span class="chip" data-f="">全部</span>
+      </div>
+      <input type="search" id="q" placeholder="搜病歷號 / 藥物" style="flex:2">
+      <button class="btn2" id="btnReload" style="flex:0 0 auto">重新整理</button>
+    </div>
+    <div class="note" id="status" style="margin-top:.4rem">每 60 秒自動更新；新案件以黃底標示。</div>
+  </div>
+
+  <div class="card" style="overflow-x:auto">
+    <table id="tbl"><thead><tr><th>#</th><th>登錄</th><th>病歷號</th><th class="hide-sm">姓名</th><th>藥物</th><th>類型</th><th class="hide-sm">癌別</th><th>狀態</th><th class="hide-sm">有效期至</th></tr></thead><tbody></tbody></table>
+  </div>
+
+  <div class="card hid" id="edit">
+    <div class="row" style="margin-bottom:.5rem"><b id="eTitle"></b><button class="btn2" id="eClose" style="flex:0 0 auto">關閉</button></div>
+    <div class="grid" id="eInfo"></div>
+    <hr style="border:0;border-top:1px solid var(--border);margin:.8rem 0">
+    <div class="grid">
+      <div><label class="l">狀態</label><select id="eStatus"><option>待送</option><option>已送審</option><option>補件</option><option>核准</option><option>駁回</option><option>結案</option></select></div>
+      <div><label class="l">送審日</label><input type="date" id="eSent"></div>
+      <div><label class="l">有效期至</label><input type="date" id="eValid"></div>
+      <div><label class="l">結果</label><input type="text" id="eResult" placeholder="核准文號 / 駁回理由"></div>
+    </div>
+    <label class="l">行政備註</label><textarea id="eMemo" rows="2"></textarea>
+    <div class="row" style="margin-top:.6rem"><span class="note" id="eMeta"></span><button class="btn" id="eSave" style="flex:0 0 auto">儲存</button></div>
+  </div>
+</main>
+
+<dialog id="dlg">
+  <h3 style="margin:.2rem 0 .6rem">設定</h3>
+  <label class="l">後端 URL（GAS /exec）</label><input type="text" id="sUrl">
+  <label class="l">共用密碼</label><input type="text" id="sSecret">
+  <div class="row" style="margin-top:.8rem"><button class="btn2" id="sCancel">取消</button><button class="btn" id="sSave">儲存</button></div>
+</dialog>
+
+<script>
+var DEFAULT_GAS_URL = "https://script.google.com/macros/s/AKfycbxjLokGZU17DEE82c-RrMfvWUxdcuZwPdOpNu10JJPloZgmWvYezB42Yy2I3uN6PCyU/exec";
+var DEFAULT_SECRET  = "2538b879d4b2f697";
+var LS = {get:function(k,d){try{var v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set:function(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},del:function(k){try{localStorage.removeItem(k)}catch(e){}}};
+var cfg = LS.get('nhirx.cfg',{});
+function gasUrl(){return cfg.url||DEFAULT_GAS_URL}
+function secret(){return cfg.secret||DEFAULT_SECRET}
+function validUrl(u){return /^https:\/\/script\.google\.com\//.test(u)||/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//.test(u)}
+var $=function(s){return document.querySelector(s)};
+var sess = LS.get('nhirx.admin',null);
+var rows=[], filter='待送', selected=null, timer=null, lastSeen=LS.get('nhirx.admin.lastSeen',0);
+
+function post(body){return fetch(gasUrl(),{method:'POST',body:JSON.stringify(body),headers:{'Content-Type':'text/plain;charset=utf-8'}}).then(function(r){return r.text()}).then(function(t){try{return JSON.parse(t)}catch(e){throw new Error('回應非 JSON')}})}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+var tt;function toast(m,k){var t=document.createElement('div');t.className='toast'+(k?' '+k:'');t.textContent=m;document.body.appendChild(t);setTimeout(function(){t.remove()},k==='err'?5000:3000)}
+function stClass(s){return s==='待送'?'st-wait':s==='已送審'?'st-sent':/核准|結案/.test(s)?'st-ok':/駁回/.test(s)?'st-no':/補件/.test(s)?'st-q':''}
+
+/* ---- login ---- */
+function showApp(){$('#login').classList.add('hid');$('#app').classList.remove('hid');$('#btnLogout').classList.remove('hid');$('#who').textContent=sess.name;load();if(timer)clearInterval(timer);timer=setInterval(load,60000)}
+$('#btnLogin').onclick=function(){
+  var name=$('#lname').value.trim(),code=$('#lcode').value.trim();
+  if(!name||!code){toast('請輸入姓名與密碼','warn');return}
+  if(!validUrl(gasUrl())){toast('尚未設定後端 URL（⚙）','warn');return}
+  $('#btnLogin').disabled=true;
+  post({action:'login',secret:secret(),admin_code:code}).then(function(r){
+    if(r.status!=='ok')throw new Error('密碼錯誤');
+    sess={name:name,code:code};LS.set('nhirx.admin',sess);showApp();
+  }).catch(function(e){toast(e.message,'err')}).finally(function(){$('#btnLogin').disabled=false});
+};
+$('#lcode').onkeydown=function(e){if(e.key==='Enter')$('#btnLogin').click()};
+$('#btnLogout').onclick=function(){sess=null;LS.del('nhirx.admin');if(timer)clearInterval(timer);location.reload()};
+
+/* ---- list ---- */
+function load(){
+  if(!sess)return;
+  $('#status').textContent='載入中…';
+  post({action:'list',secret:secret(),limit:300}).then(function(r){
+    if(r.status!=='ok')throw new Error(r.message||'讀取失敗');
+    var prevMax=rows.length?Math.max.apply(null,rows.map(function(x){return Number(x.id)||0})):lastSeen;
+    rows=r.rows;
+    var maxId=rows.length?Math.max.apply(null,rows.map(function(x){return Number(x.id)||0})):0;
+    var fresh=rows.filter(function(x){return Number(x.id)>lastSeen});
+    var wait=rows.filter(function(x){return x.status==='待送'}).length;
+    $('#badge').textContent=wait;$('#badge').classList.toggle('hid',!wait);
+    document.title=(wait?'('+wait+') ':'')+'健保申請 行政清單';
+    $('#status').textContent='共 '+rows.length+' 筆，待送 '+wait+' 筆'+(fresh.length?'，新案 '+fresh.length+' 筆':'')+'　更新 '+new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});
+    if(fresh.length&&maxId>prevMax&&prevMax>0)notifyNew(fresh);
+    render();
+  }).catch(function(e){$('#status').textContent='讀取失敗：'+e.message});
+}
+function notifyNew(list){
+  var f=list[0];var msg='新案 #'+f.id+' 病歷號 '+f.mrn+' '+f.drugs+'（'+f.type+'）'+(list.length>1?' 等 '+list.length+' 筆':'');
+  toast(msg,'warn');
+  try{if(window.Notification&&Notification.permission==='granted')new Notification('健保事前審查 新案',{body:msg})}catch(e){}
+}
+function render(){
+  var q=$('#q').value.trim().toLowerCase();var tb=$('#tbl tbody');tb.innerHTML='';
+  rows.filter(function(x){return (!filter||x.status===filter)&&(!q||String(x.mrn).indexOf(q)>=0||String(x.drugs).toLowerCase().indexOf(q)>=0||String(x.name||'').indexOf(q)>=0)})
+  .forEach(function(x){var tr=document.createElement('tr');tr.className='r'+(Number(x.id)>lastSeen?' new':'')+(selected&&selected.id==x.id?' sel':'');
+    tr.innerHTML='<td>'+esc(x.id)+'</td><td>'+esc(String(x.ts||'').slice(5,10))+'</td><td><b>'+esc(x.mrn)+'</b></td><td class="hide-sm">'+esc(x.name)+'</td><td>'+esc(x.drugs)+'</td><td>'+esc(x.type)+'</td><td class="hide-sm">'+esc(x.cancer)+'</td><td><span class="st '+stClass(x.status)+'">'+esc(x.status)+'</span></td><td class="hide-sm">'+esc(x.valid)+'</td>';
+    tr.onclick=function(){openEdit(x)};tb.appendChild(tr)});
+  if(!tb.children.length)tb.innerHTML='<tr><td colspan="9" class="note">沒有符合的案件</td></tr>';
+}
+document.querySelectorAll('#filters .chip').forEach(function(c){c.onclick=function(){filter=c.dataset.f;document.querySelectorAll('#filters .chip').forEach(function(x){x.classList.toggle('on',x===c)});render()}});
+$('#q').oninput=render;
+$('#btnReload').onclick=load;
+
+/* ---- edit ---- */
+function openEdit(x){
+  selected=x;$('#edit').classList.remove('hid');
+  $('#eTitle').textContent='#'+x.id+'　病歷號 '+x.mrn+(x.name?'　'+x.name:'')+'　'+x.drugs+'（'+x.type+'）';
+  $('#eInfo').innerHTML=['登錄 '+x.ts,'癌別 '+(x.cancer||'—'),'登錄醫師 '+(x.doctor||'—'),'醫師備註 '+(x.memo||'—')].map(function(s){return '<div class="kv">'+esc(s)+'</div>'}).join('');
+  $('#eStatus').value=x.status||'待送';$('#eSent').value=x.sent||'';$('#eValid').value=x.valid||'';$('#eResult').value=x.result||'';$('#eMemo').value=x.admin_memo||'';
+  $('#eMeta').textContent=x.updated_by?('上次更新：'+x.updated_by+' '+x.updated_at):'';
+  if(Number(x.id)>lastSeen){lastSeen=Number(x.id);LS.set('nhirx.admin.lastSeen',lastSeen)}
+  render();$('#edit').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+$('#eClose').onclick=function(){selected=null;$('#edit').classList.add('hid');render()};
+$('#eSave').onclick=function(){
+  if(!selected)return;$('#eSave').disabled=true;
+  var p={action:'update',secret:secret(),admin_code:sess.code,admin:sess.name,id:selected.id,'狀態':$('#eStatus').value,'送審日':$('#eSent').value,'結果':$('#eResult').value.trim(),'有效期至':$('#eValid').value,'行政備註':$('#eMemo').value.trim()};
+  post(p).then(function(r){if(r.status!=='ok')throw new Error(r.message||'儲存失敗');toast('已儲存 #'+selected.id+'　'+p['狀態']);selected=null;$('#edit').classList.add('hid');load()})
+  .catch(function(e){toast(e.message,'err')}).finally(function(){$('#eSave').disabled=false});
+};
+
+/* ---- notifications / settings ---- */
+$('#btnNotif').onclick=function(){if(!window.Notification){toast('此瀏覽器不支援通知','warn');return}Notification.requestPermission().then(function(p){toast(p==='granted'?'已開啟瀏覽器通知':'未開啟通知','warn')})};
+$('#btnSet').onclick=function(){$('#sUrl').value=cfg.url||DEFAULT_GAS_URL;$('#sSecret').value=cfg.secret||DEFAULT_SECRET;$('#dlg').showModal()};
+$('#sCancel').onclick=function(){$('#dlg').close()};
+$('#sSave').onclick=function(){cfg={url:$('#sUrl').value.trim(),secret:$('#sSecret').value.trim()};LS.set('nhirx.cfg',cfg);$('#dlg').close();toast('設定已儲存')};
+
+if(sess)showApp();
+</script>
+</body>
+</html>

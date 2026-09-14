@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>健保申請登錄 v1.1 拍照</title>
+<meta name="theme-color" content="#0f766e">
+<style>
+:root{
+  --bg:#f3f4f2;--surface:#ffffff;--surface2:#f8f9f7;--border:#d9ddd8;
+  --text:#1f2937;--text2:#374151;--muted:#6b7280;--faint:#9ca3af;
+  --primary:#0f766e;--primary-d:#115e59;--primary-soft:#e6f4f1;--primary-rgb:15,118,110;
+  --ok:#15803d;--ok-soft:#e7f5ea;--warn:#b45309;--warn-soft:#fdf3e3;--danger:#b91c1c;--danger-soft:#fbe9e9;
+  --radius:12px;--fs:17px;
+}
+*{box-sizing:border-box}
+html{font-size:var(--fs)}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;line-height:1.45;padding-bottom:6rem}
+header{background:var(--primary);color:#f0fdfa;padding:.7rem 1rem;display:flex;align-items:center;gap:.6rem;position:sticky;top:0;z-index:5}
+header h1{font-size:1.05rem;margin:0;font-weight:600;flex:1}
+header button{background:rgba(255,255,255,.15);border:0;color:#f0fdfa;border-radius:8px;padding:.35rem .6rem;font-size:.9rem}
+.tabs{display:flex;background:var(--surface);border-bottom:1px solid var(--border)}
+.tabs button{flex:1;border:0;background:none;padding:.7rem;font-size:1rem;color:var(--muted);border-bottom:3px solid transparent}
+.tabs button.on{color:var(--primary);border-bottom-color:var(--primary);font-weight:600}
+main{max-width:640px;margin:0 auto;padding:.9rem}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:.9rem;margin-bottom:.9rem}
+label.l{display:block;font-size:.9rem;color:var(--muted);margin:.2rem 0 .3rem}
+input[type=text],input[type=search],textarea{width:100%;font-size:1.05rem;padding:.6rem .7rem;border:1px solid var(--border);border-radius:10px;background:var(--surface2);color:var(--text)}
+input:focus,textarea:focus{outline:2px solid rgba(var(--primary-rgb),.35);border-color:var(--primary)}
+.big{font-size:1.5rem !important;letter-spacing:.06em;font-variant-numeric:tabular-nums}
+.chips{display:flex;flex-wrap:wrap;gap:.4rem;margin:.3rem 0}
+.chip{border:1px solid var(--border);background:var(--surface2);color:var(--text2);border-radius:999px;padding:.4rem .8rem;font-size:.95rem;cursor:pointer;user-select:none}
+.chip.on{background:var(--primary);color:#fff;border-color:var(--primary)}
+.chip.sel{background:var(--primary-soft);color:var(--primary-d);border-color:var(--primary);font-weight:600}
+.chip .x{margin-left:.3rem;opacity:.7}
+.list{max-height:15rem;overflow:auto;border:1px solid var(--border);border-radius:10px;background:var(--surface);margin-top:.4rem}
+.list div{padding:.55rem .7rem;border-bottom:1px solid var(--border);cursor:pointer}
+.list div:last-child{border-bottom:0}
+.list div:active{background:var(--primary-soft)}
+.list small{color:var(--muted);display:block;font-size:.8rem}
+.list .pa{color:var(--warn);font-size:.75rem;margin-left:.3rem}
+.seg{display:flex;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.seg button{flex:1;border:0;background:var(--surface2);padding:.7rem;font-size:1.05rem;color:var(--text2)}
+.seg button.on{background:var(--primary);color:#fff;font-weight:600}
+.submit{position:fixed;left:0;right:0;bottom:0;padding:.7rem 1rem calc(.7rem + env(safe-area-inset-bottom));background:linear-gradient(transparent,var(--bg) 30%)}
+.submit button{width:100%;max-width:640px;display:block;margin:0 auto;font-size:1.2rem;padding:.9rem;border:0;border-radius:14px;background:var(--primary);color:#fff;font-weight:700;box-shadow:0 4px 14px rgba(var(--primary-rgb),.35)}
+.submit button:disabled{background:var(--faint);box-shadow:none}
+.note{font-size:.85rem;color:var(--muted)}
+.toast{position:fixed;top:4.2rem;left:50%;transform:translateX(-50%);background:var(--ok);color:#fff;padding:.7rem 1.1rem;border-radius:10px;font-size:1rem;z-index:9;box-shadow:0 4px 14px rgba(0,0,0,.2);max-width:90vw}
+.toast.err{background:var(--danger)}
+.toast.warn{background:var(--warn)}
+table{width:100%;border-collapse:collapse;font-size:.92rem}
+th,td{text-align:left;padding:.45rem .4rem;border-bottom:1px solid var(--border);vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:.8rem}
+.st{display:inline-block;padding:.1rem .5rem;border-radius:999px;font-size:.8rem;font-weight:600}
+.st-wait{background:var(--warn-soft);color:var(--warn)}
+.st-sent{background:var(--primary-soft);color:var(--primary-d)}
+.st-ok{background:var(--ok-soft);color:var(--ok)}
+.st-no{background:var(--danger-soft);color:var(--danger)}
+.st-q{background:var(--danger-soft);color:var(--danger)}
+.row{display:flex;gap:.6rem;align-items:center}
+.row>*{flex:1}
+.btn2{border:1px solid var(--border);background:var(--surface);color:var(--primary-d);border-radius:10px;padding:.5rem .8rem;font-size:.95rem}
+.hid{display:none}
+.btn-photo{display:block;text-align:center;background:var(--primary);color:#fff;border-radius:12px;padding:.8rem;font-size:1.05rem;font-weight:700;cursor:pointer;flex:3}
+.cands{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.4rem}
+.badge{background:var(--danger);color:#fff;border-radius:999px;padding:0 .45rem;font-size:.75rem;margin-left:.3rem}
+dialog{border:0;border-radius:var(--radius);padding:1rem;max-width:520px;width:92vw}
+dialog::backdrop{background:rgba(0,0,0,.35)}
+</style>
+</head>
+<body>
+<header>
+  <h1>健保事前審查 · 門診登錄 <span style="font-size:.7rem;opacity:.75">v1.1 拍照</span></h1>
+  <button id="btnQueue" class="hid" title="待重送">待送<span class="badge" id="qn">0</span></button>
+  <button id="btnSet" title="設定">⚙</button>
+</header>
+<div class="tabs">
+  <button class="on" data-tab="form">登錄</button>
+  <button data-tab="list">清單</button>
+</div>
+
+<main id="tab-form">
+  <div class="card" id="photoCard">
+    <div class="row">
+      <label class="btn-photo" for="photo">📷 拍 HIS 畫面，自動讀病歷號</label>
+      <input type="file" id="photo" accept="image/*" capture="environment" class="hid">
+      <span class="note" id="photoStatus" style="flex:2">照片只在裝置內處理，不上傳。電腦上可 Win+Shift+S 截圖後在此頁 Ctrl+V。</span>
+    </div>
+    <canvas id="cv" class="hid"></canvas>
+    <img id="crop" class="hid" alt="" style="max-width:100%;border-radius:8px;margin-top:.5rem">
+  </div>
+  <div class="card">
+    <label class="l">病歷號 *</label>
+    <input type="text" id="mrn" class="big" inputmode="numeric" pattern="[0-9]*" placeholder="例 14408593" autocomplete="off" autofocus>
+    <div class="row" style="margin-top:.6rem">
+      <div><label class="l">姓名（可留空）</label><input type="text" id="pname" autocomplete="off"></div>
+      <div><label class="l">類型</label>
+        <div class="seg"><button id="tFirst" class="on">初次</button><button id="tRenew">續用</button></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <label class="l">癌別（點選可縮小藥物清單）</label>
+    <div class="chips" id="cancers"></div>
+  </div>
+
+  <div class="card">
+    <label class="l">申請藥物 *（可多選，如併用）</label>
+    <div class="chips" id="selDrugs"></div>
+    <div class="chips" id="recent"></div>
+    <input type="search" id="q" placeholder="搜學名 / 商品名，如 nivo、Keytruda" autocomplete="off">
+    <div class="list" id="dl"></div>
+  </div>
+
+  <div class="card">
+    <label class="l">備註（PD-L1、線別、生物標記、其他要行政注意的事）</label>
+    <textarea id="memo" rows="2" placeholder="例：PD-L1 TC 20%；二線；CT PR"></textarea>
+    <div class="note" style="margin-top:.4rem">送出後行政端立即收到 email 通知並寫入清單。病歷內容由行政人員自行從 HIS 調閱。</div>
+  </div>
+</main>
+
+<main id="tab-list" class="hid">
+  <div class="card">
+    <div class="row"><b>申請清單</b><button class="btn2" id="btnReload" style="flex:0 0 auto">重新整理</button></div>
+    <div class="note" id="listNote" style="margin:.4rem 0"></div>
+    <div style="overflow-x:auto"><table id="tbl"><thead><tr><th>#</th><th>日期</th><th>病歷號</th><th>藥物</th><th>類型</th><th>狀態</th><th>有效期至</th></tr></thead><tbody></tbody></table></div>
+  </div>
+</main>
+
+<div class="submit" id="submitBar"><button id="btnSubmit" disabled>送出登錄</button></div>
+
+<dialog id="dlg">
+  <h3 style="margin:.2rem 0 .6rem">設定</h3>
+  <label class="l">GAS Web App URL（/exec）</label>
+  <input type="text" id="sUrl" placeholder="https://script.google.com/macros/s/.../exec">
+  <label class="l">共用密碼</label>
+  <input type="text" id="sSecret">
+  <label class="l">登錄醫師</label>
+  <input type="text" id="sDoc" placeholder="林振源">
+  <div class="row" style="margin-top:.8rem"><button class="btn2" id="sCancel">取消</button><button class="btn2" id="sSave" style="background:var(--primary);color:#fff;border-color:var(--primary)">儲存</button></div>
+</dialog>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/tesseract.min.js"></script>
+<script>
+/* ===== 預設設定（部署後可在 ⚙ 覆寫，存於本機瀏覽器） ===== */
+var DEFAULT_GAS_URL = "https://script.google.com/macros/s/AKfycbxjLokGZU17DEE82c-RrMfvWUxdcuZwPdOpNu10JJPloZgmWvYezB42Yy2I3uN6PCyU/exec";
+var DEFAULT_SECRET  = "2538b879d4b2f697";
+var DRUGS = [{"n":107,"g":"Abemaciclib","b":"Verzenio","c":["乳癌"],"p":true,"k":["EGFR","HER2"]},{"n":49,"g":"Abiraterone","b":"Zytiga","c":["攝護腺癌"],"p":true,"k":["BRCA"]},{"n":100,"g":"Acalabrutinib","b":"Calquence","c":["血液腫瘤/白血病","淋巴瘤"],"p":true,"k":["CD20","del(17p)/TP53"]},{"n":45,"g":"Afatinib","b":"Giotrif","c":["肺癌"],"p":false,"k":["EGFR","EGFR ex19del/L858R"]},{"n":13,"g":"Aldesleukin","b":"Proleukin for Injection","c":["腎細胞癌"],"p":false,"k":[]},{"n":60,"g":"Alectinib","b":"Alecensa","c":["肺癌"],"p":true,"k":["ALK"]},{"n":129,"g":"Alpelisib","b":"Piqray","c":["乳癌"],"p":true,"k":["HER2","PIK3CA"]},{"n":126,"g":"Amivantamab","b":"Rybrevant","c":["肺癌"],"p":true,"k":["EGFR"]},{"n":90,"g":"Apalutamide","b":"Erleada","c":["攝護腺癌"],"p":true,"k":[]},{"n":1,"g":"Aromatase Inhibitors","b":"Aromasin Sugar Coated Tablets","c":["乳癌","卵巢癌","子宮/婦科"],"p":false,"k":[]},{"n":23,"g":"Arsenic trioxide","b":"Asadin Inj.","c":["血液腫瘤/白血病"],"p":false,"k":[]},{"n":122,"g":"Asciminib","b":"Scemblix","c":["血液腫瘤/白血病"],"p":false,"k":["BCR-ABL/Ph+"]},{"n":69,"g":"Atezolizumab","b":"Tecentriq；9.69 免疫檢查點抑制劑","c":["肺癌","乳癌","大腸直腸癌","肝癌","胃癌","淋巴瘤","腎細胞癌","黑色素瘤","頭頸癌","胃腸道基質瘤","膽道癌","食道癌","泌尿上皮癌"],"p":true,"k":["EGFR","ALK","ROS1","BRAF","HER2","PD-L1","MSI-H/dMMR"]},{"n":97,"g":"Avapritinib","b":"Ayvakit","c":[],"p":true,"k":[]},{"n":69,"g":"Avelumab","b":"Bavencio；9.69 免疫檢查點抑制劑","c":["肺癌","乳癌","大腸直腸癌","肝癌","胃癌","淋巴瘤","腎細胞癌","黑色素瘤","頭頸癌","胃腸道基質瘤","膽道癌","食道癌","泌尿上皮癌"],"p":true,"k":["EGFR","ALK","ROS1","BRAF","HER2","PD-L1","MSI-H/dMMR"]},{"n":58,"g":"Axitinib","b":"Inlyta","c":["腎細胞癌"],"p":true,"k":[]},{"n":44,"g":"Azacitidine","b":"Vidaza","c":["血液腫瘤/白血病"],"p":true,"k":[]},{"n":42,"g":"Bendamustine","b":"Innomustine","c":["血液腫瘤/白血病","淋巴瘤"],"p":true,"k":["CD20"]},{"n":37,"g":"Bevacizumab","b":"Avastin","c":["肺癌","大腸直腸癌","肝癌","卵巢癌","子宮/婦科","腦瘤/膠質瘤"],"p":true,"k":["EGFR","EGFR ex19del/L858R","RAS(全)","BRCA"]},{"n":40,"g":"Bicalutamide","b":"","c":["攝護腺癌"],"p":false,"k":[]},{"n":134,"g":"Binimetinib","b":"Mektovi；併用 Encorafenib(9.134)","c":["大腸直腸癌"],"p":true,"k":["EGFR","BRAF"]},{"n":64,"g":"Blinatumomab","b":"Blincyto","c":["血液腫瘤/白血病"],"p":true,"k":["BCR-ABL/Ph+"]},{"n":28,"g":"Bortezomib","b":"Velcade","c":["血液腫瘤/白血病","淋巴瘤","多發性骨髓瘤"],"p":true,"k":[]},{"n":132,"g":"Bosutinib","b":"Bostini","c":["血液腫瘤/白血病"],"p":false,"k":["BCR-ABL/Ph+"]},{"n":56,"g":"Brentuximab vedotin","b":"Adcetris","c":["淋巴瘤"],"p":true,"k":["ALK","CD30"]},{"n":82,"g":"Brigatinib","b":"Alunbrig","c":["肺癌"],"p":true,"k":["ALK"]},{"n":74,"g":"Cabozantinib","b":"Cabometyx","c":["腎細胞癌","甲狀腺癌"],"p":true,"k":[]},{"n":17,"g":"Capecitabine","b":"Xeloda","c":["乳癌","大腸直腸癌","胃癌"],"p":false,"k":["HER2"]},{"n":135,"g":"Capivasertib","b":"Truqap","c":["乳癌"],"p":true,"k":["EGFR","HER2","PIK3CA"]},{"n":2,"g":"Carboplatin","b":"Paraplatin；Carboplatin inj","c":["肺癌","乳癌","卵巢癌"],"p":false,"k":["EGFR","ALK","ROS1"]},{"n":75,"g":"Carfilzomib","b":"Kyprolis","c":["血液腫瘤/白血病","多發性骨髓瘤"],"p":true,"k":[]},{"n":35,"g":"carmustine 植入劑","b":"Gliadel Wafer","c":[],"p":true,"k":[]},{"n":72,"g":"CDK4/6抑制劑","b":"ribociclib；palbociclib","c":["乳癌","卵巢癌"],"p":true,"k":["HER2"]},{"n":69,"g":"Cemiplimab","b":"Libtayo；9.69 免疫檢查點抑制劑","c":["肺癌","乳癌","大腸直腸癌","肝癌","胃癌","淋巴瘤","腎細胞癌","黑色素瘤","頭頸癌","胃腸道基質瘤","膽道癌","食道癌","泌尿上皮癌"],"p":true,"k":["EGFR","ALK","ROS1","BRAF","HER2","PD-L1","MSI-H/dMMR"]},{"n":59,"g":"Ceritinib","b":"Zykadia","c":["肺癌"],"p":true,"k":["ALK"]},{"n":27,"g":"Cetuximab","b":"Erbitux","c":["大腸直腸癌","頭頸癌"],"p":true,"k":["EGFR","BRAF","KRAS","RAS(全)"]},{"n":57,"g":"Clofarabine","b":"Evoltra","c":["血液腫瘤/白血病"],"p":true,"k":[]},{"n":50,"g":"Crizotinib","b":"Xalkori","c":["肺癌"],"p":true,"k":["ALK","ROS1"]},{"n":91,"g":"Dabrafenib","b":"Tafinlar","c":["肺癌","黑色素瘤"],"p":true,"k":["BRAF","PD-L1"]},{"n":83,"g":"Dacomitinib","b":"Vizimpro","c":["肺癌"],"p":false,"k":["EGFR","EGFR ex19del/L858R"]},{"n":78,"g":"Daratumumab","b":"Darzalex 靜脈注射劑與皮下注射劑","c":["血液腫瘤/白血病","多發性骨髓瘤"],"p":true,"k":[]},{"n":94,"g":"Darolutamide","b":"Nubeqa","c":["攝護腺癌"],"p":true,"k":[]},{"n":30,"g":"Dasatinib","b":"Sprycel","c":["血液腫瘤/白血病"],"p":false,"k":["BCR-ABL/Ph+"]},{"n":96,"g":"Decitabine","b":"","c":["血液腫瘤/白血病"],"p":true,"k":[]},{"n":102,"g":"Dinutuximab beta","b":"Qarziba","c":["神經母細胞瘤"],"p":true,"k":[]},{"n":3,"g":"Docetaxel","b":"","c":["肺癌","乳癌","胃癌","攝護腺癌","頭頸癌"],"p":false,"k":[]},{"n":14,"g":"Doxorubicin hydrochloride liposome injection","b":"Lipo-Dox、Caelyx","c":["乳癌","卵巢癌"],"p":false,"k":[]},{"n":69,"g":"Durvalumab","b":"Imfinzi；9.69 免疫檢查點抑制劑","c":["肺癌","乳癌","大腸直腸癌","肝癌","胃癌","淋巴瘤","腎細胞癌","黑色素瘤","頭頸癌","胃腸道基質瘤","膽道癌","食道癌","泌尿上皮癌"],"p":true,"k":["EGFR","ALK","ROS1","BRAF","HER2","PD-L1","MSI-H/dMMR"]},{"n":111,"g":"Elotuzumab","b":"Empliciti","c":["血液腫瘤/白血病","多發性骨髓瘤"],"p":true,"k":[]},{"n":118,"g":"Elranatamab","b":"Elrexfio","c":["血液腫瘤/白血病","多發性骨髓瘤"],"p":true,"k":["CD38"]},{"n":134,"g":"Encorafenib","b":"Braftovi","c":["大腸直腸癌"],"p":true,"k":["EGFR","BRAF"]},{"n":109,"g":"Enfortumab vedotin","b":"Padcev","c":[],"p":true,"k":[]},{"n":93,"g":"Entrectinib","b":"Rozlytrek","c":["肺癌"],"p":true,"k":["ROS1"]},{"n":54,"g":"Enzalutamide","b":"Xtandi","c":["攝護腺癌"],"p":true,"k":[]},{"n":121,"g":"Epcoritamab","b":"Epkinly","c":["血液腫瘤/白血病","淋巴瘤"],"p":true,"k":["CD20"]},{"n":48,"g":"Eribulin","b":"Halaven","c":["乳癌"],"p":true,"k":[]},{"n":29,"g":"Erlotinib","b":"Tarceva","c":["肺癌"],"p":false,"k":["EGFR","EGFR ex19del/L858R"]},{"n":19,"g":"Estramustine sod. phosphate monohydrate","b":"Estracyt","c":["攝護腺癌"],"p":false,"k":[]},{"n":36,"g":"Everolimus","b":"Afinitor 5mg 及10mg","c":["乳癌","腎細胞癌"],"p":true,"k":["HER2"]},{"n":114,"g":"Fedratinib","b":"Inrebic","c":["血液腫瘤/白血病"],"p":true,"k":[]},{"n":21,"g":"Fludarabine","b":"Fludara Oral, Film-Coated Tablet 及 Fludara Lyophilized IV   Injection","c":["血液腫瘤/白血病","淋巴瘤"],"p":false,"k":[]},{"n":39,"g":"Flutamide；buserelin","b":"","c":["攝護腺癌"],"p":false,"k":[]},{"n":136,"g":"Fruquintinib","b":"Fruzaqla","c":["大腸直腸癌"],"p":true,"k":["EGFR","KRAS","RAS(全)"]},{"n":130,"g":"Fulvestrant","b":"Fustron","c":["乳癌"],"p":false,"k":[]},{"n":24,"g":"Gefitinib","b":"Iressa","c":["肺癌"],"p":false,"k":["EGFR","EGFR ex19del/L858R"]},{"n":4,"g":"Gemcitabine","b":"Gemzar","c":["肺癌","乳癌","卵巢癌","胰臟癌","膽道癌","泌尿上皮癌"],"p":false,"k":[]},{"n":113,"g":"Gemtuzumab ozogamicin","b":"Mylotarg","c":["血液腫瘤/白血病"],"p":true,"k":[]},{"n":99,"g":"Gilteritinib","b":"Xospata","c":["血液腫瘤/白血病"],"p":true,"k":["FLT3"]},{"n":120,"g":"Glofitamab","b":"Columvi","c":["血液腫瘤/白血病","淋巴瘤"],"p":true,"k":["CD20"]},{"n":61,"g":"Ibrutinib","b":"Imbruvica","c":["血液腫瘤/白血病","淋巴瘤"],"p":true,"k":["CD20","del(17p)/TP53"]},{"n":22,"g":"Imatinib","b":"Glivec","c":["血液腫瘤/白血病","胃腸道基質瘤"],"p":true,"k":["BCR-ABL/Ph+"]},{"n":73,"g":"Inotuzumab ozogamicin","b":"Besponsa","c":["血液腫瘤/白血病"],"p":true,"k":["BCR-ABL/Ph+","CD22"]},{"n":69,"g":"Ipilimumab","b":"Yervoy；9.69 免疫檢查點抑制劑","c":["肺癌","乳癌","大腸直腸癌","肝癌","胃癌","淋巴瘤","腎細胞癌","黑色素瘤","頭頸癌","胃腸道基質瘤","膽道癌","食道癌","泌尿上皮癌"],"p":true,"k":["EGFR","ALK","ROS1","BRAF","HER2","PD-L1","MSI-H/dMMR"]},{"n":12,"g":"Irinotecan","b":"Campto injection","c":["大腸直腸癌","胰臟癌"],"p":true,"k":[]},{"n":108,"g":"Isatuximab","b":"Sarclisa","c":["血液腫瘤/白血病","多發性骨髓瘤"],"p":true,"k":[]},{"n":88,"g":"Ixabepilone","b":"Ixempra","c":["乳癌"],"p":false,"k":[]},{"n":77,"g":"Ixazomib","b":"Ninlaro","c":["血液腫瘤/白血病","多發性骨髓瘤"],"p":true,"k":["del(17p)/TP53"]},{"n":47,"g":"Lapatinib","b":"Tykerb","c":["乳癌"],"p":false,"k":["HER2"]},{"n":95,"g":"Larotrectinib","b":"Vitrakvi","c":["肺癌","大腸直腸癌","黑色素瘤","胰臟癌","甲狀腺癌","胃腸道基質瘤","膽道癌","腦瘤/膠質瘤"],"p":true,"k":["EGFR","ALK","ROS1","BRAF","NTRK"]},{"n":43,"g":"Lenalidomide","b":"Revlimid","c":["血液腫瘤/白血病","淋巴瘤","多發性骨髓瘤"],"p":true,"k":["CD20"]},{"n":63,"g":"Lenvatinib","b":"Lenvima","c":["肝癌","甲狀腺癌"],"p":true,"k":[]},{"n":81,"g":"Lorlatinib","b":"Lorviqua","c":["肺癌"],"p":true,"k":["ALK"]},{"n":76,"g":"Midostaurin","b":"Rydapt","c":["血液腫瘤/白血病"],"p":true,"k":["FLT3"]},{"n":127,"g":"Momelotinib","b":"Omjjara","c":["血液腫瘤/白血病"],"p":true,"k":[]},{"n":32,"g":"Nilotinib","b":"Tasigna 200mg","c":["血液腫瘤/白血病"],"p":false,"k":["BCR-ABL/Ph+"]},{"n":69,"g":"Nivolumab","b":"Opdivo；9.69 免疫檢查點抑制劑","c":["肺癌","乳癌","大腸直腸癌","肝癌","胃癌","淋巴瘤","腎細胞癌","黑色素瘤","頭頸癌","胃腸道基質瘤","膽道癌","食道癌","泌尿上皮癌"],"p":true,"k":["EGFR","ALK","ROS1","BRAF","HER2","PD-L1","MSI-H/dMMR"]},{"n":79,"g":"Obinutuzumab","b":"Gazyva","c":["血液腫瘤/白血病","淋巴瘤"],"p":true,"k":["CD20"]},{"n":80,"g":"Osimertinib","b":"Tagrisso","c":["肺癌"],"p":true,"k":["EGFR","EGFR T790M","EGFR ex19del/L858R"]},{"n":10,"g":"Oxaliplatin","b":"Campto","c":["大腸直腸癌","胃癌","食道癌"],"p":false,"k":["HER2"]},{"n":5,"g":"Paclitaxel 成分劑","b":"","c":["肺癌","乳癌","卵巢癌","胰臟癌"],"p":false,"k":[]},{"n":53,"g":"Panitumumab","b":"Vectibix","c":[],"p":true,"k":["EGFR","RAS(全)"]},{"n":85,"g":"PARP 抑制劑","b":"olaparib、niraparib、talazoparib","c":["乳癌","攝護腺癌","卵巢癌"],"p":true,"k":["HER2","BRCA","HRD/同源重組"]},{"n":41,"g":"Pazopanib","b":"Votrient","c":["腎細胞癌","胃腸道基質瘤"],"p":true,"k":[]},{"n":69,"g":"Pembrolizumab","b":"Keytruda；9.69 免疫檢查點抑制劑","c":["肺癌","乳癌","大腸直腸癌","肝癌","胃癌","淋巴瘤","腎細胞癌","黑色素瘤","頭頸癌","胃腸道基質瘤","膽道癌","食道癌","泌尿上皮癌"],"p":true,"k":["EGFR","ALK","ROS1","BRAF","HER2","PD-L1","MSI-H/dMMR"]},{"n":26,"g":"Pemetrexed","b":"Alimta","c":["肺癌"],"p":false,"k":["EGFR","ALK","ROS1"]},{"n":98,"g":"Pemigatinib","b":"Pemazyre","c":["膽道癌"],"p":true,"k":["FGFR"]},{"n":70,"g":"Pertuzumab","b":"Perjeta","c":["乳癌"],"p":true,"k":["HER2"]},{"n":112,"g":"Pertuzumab 與 trastuzumab 皮下注射複方製劑","b":"Phesgo","c":["乳癌"],"p":true,"k":["HER2"]},{"n":105,"g":"Polatuzumab vedotin","b":"Polivy","c":["血液腫瘤/白血病","淋巴瘤"],"p":true,"k":[]},{"n":62,"g":"Pomalidomide","b":"Pomalyst","c":["血液腫瘤/白血病","多發性骨髓瘤"],"p":true,"k":[]},{"n":67,"g":"Ponatinib","b":"Iclusig","c":["血液腫瘤/白血病"],"p":true,"k":["BCR-ABL/Ph+"]},{"n":65,"g":"Pralatrexate","b":"Folotyn","c":["血液腫瘤/白血病","淋巴瘤"],"p":true,"k":[]},{"n":125,"g":"Quizartinib","b":"Vanflyta","c":["血液腫瘤/白血病"],"p":true,"k":["FLT3"]},{"n":68,"g":"Radium-223","b":"Xofigo","c":["攝護腺癌"],"p":true,"k":[]},{"n":92,"g":"Ramucirumab","b":"Cyramza","c":["肝癌"],"p":true,"k":[]},{"n":51,"g":"Regorafenib","b":"Stivarga","c":["大腸直腸癌","肝癌","胃腸道基質瘤"],"p":true,"k":["EGFR","RAS(全)"]},{"n":131,"g":"Repotrectinib","b":"Augtyro","c":["肺癌"],"p":true,"k":["ROS1"]},{"n":123,"g":"Ripretinib","b":"Qinlock","c":["胃腸道基質瘤"],"p":true,"k":[]},{"n":20,"g":"Rituximab 注射劑","b":"Mabthera，不同劑型之適用範圍需符合藥品許可證登載之適\f應症","c":["血液腫瘤/白血病","淋巴瘤"],"p":true,"k":["CD20"]},{"n":55,"g":"Ruxolitinib","b":"Jakavi","c":["血液腫瘤/白血病"],"p":true,"k":[]},{"n":106,"g":"Sacituzumab govitecan","b":"Trodelvy","c":["乳癌"],"p":true,"k":["HER2"]},{"n":117,"g":"Selinexor","b":"Xpovio","c":["血液腫瘤/白血病","多發性骨髓瘤"],"p":true,"k":[]},{"n":116,"g":"Selumetinib","b":"Koselugo","c":[],"p":true,"k":[]},{"n":34,"g":"Sorafenib","b":"Nexavar","c":["肝癌","腎細胞癌","甲狀腺癌"],"p":true,"k":[]},{"n":6,"g":"Streptococcus pyrogene","b":"Picibanil","c":[],"p":false,"k":[]},{"n":31,"g":"Sunitinib","b":"Sutent","c":["腎細胞癌"],"p":true,"k":[]},{"n":124,"g":"Tafasitamab","b":"Minjuvi","c":["淋巴瘤"],"p":true,"k":["CD20","CD19"]},{"n":119,"g":"Teclistamab","b":"Tecvayli","c":["血液腫瘤/白血病","多發性骨髓瘤"],"p":true,"k":["CD38"]},{"n":46,"g":"Tegafur/gimeracil/oteracil 複方製劑","b":"TS-1","c":["肺癌","胃癌","胰臟癌","膽道癌"],"p":true,"k":[]},{"n":25,"g":"Temozolomide","b":"Temodal","c":["腦瘤/膠質瘤"],"p":true,"k":[]},{"n":38,"g":"Temsirolimus","b":"Torisel","c":["腎細胞癌"],"p":true,"k":[]},{"n":101,"g":"Tepotinib","b":"Tepmetko","c":["肺癌"],"p":true,"k":["PD-L1","MET ex14"]},{"n":33,"g":"Thalidomide","b":"Thado","c":["血液腫瘤/白血病","多發性骨髓瘤"],"p":false,"k":[]},{"n":110,"g":"Tirabrutinib","b":"Velexbru","c":["淋巴瘤"],"p":true,"k":[]},{"n":103,"g":"Tisagenlecleucel","b":"Kymriah","c":["血液腫瘤/白血病","淋巴瘤","子宮/婦科"],"p":true,"k":["CD19"]},{"n":16,"g":"Topotecan","b":"Hycamtin","c":["肺癌","卵巢癌"],"p":false,"k":[]},{"n":8,"g":"Toremifene","b":"Fareston","c":["乳癌"],"p":false,"k":[]},{"n":91,"g":"Trametinib","b":"Mekinist；併用 Dabrafenib(9.91)","c":["肺癌","黑色素瘤"],"p":true,"k":["BRAF","PD-L1"]},{"n":18,"g":"Trastuzumab","b":"Herceptin","c":["乳癌","胃癌"],"p":true,"k":["HER2"]},{"n":115,"g":"Trastuzumab deruxtecan","b":"Enhertu","c":["乳癌"],"p":true,"k":["HER2"]},{"n":87,"g":"Trastuzumab emtansine","b":"Kadcyla","c":["乳癌"],"p":true,"k":["HER2"]},{"n":69,"g":"Tremelimumab","b":"Imjudo；9.69 免疫檢查點抑制劑","c":["肺癌","乳癌","大腸直腸癌","肝癌","胃癌","淋巴瘤","腎細胞癌","黑色素瘤","頭頸癌","胃腸道基質瘤","膽道癌","食道癌","泌尿上皮癌"],"p":true,"k":["EGFR","ALK","ROS1","BRAF","HER2","PD-L1","MSI-H/dMMR"]},{"n":15,"g":"Tretinoin","b":"Vesanoid Soft Gelatin","c":["血液腫瘤/白血病"],"p":false,"k":[]},{"n":66,"g":"Trifluridine/tipiracil","b":"Lonsurf","c":["大腸直腸癌","胃癌"],"p":false,"k":["EGFR","RAS(全)","HER2"]},{"n":128,"g":"Tucidinostat","b":"Kepida","c":["乳癌"],"p":true,"k":["HER2"]},{"n":11,"g":"Uracil-Tegafur","b":"Ufur","c":["肺癌","乳癌","大腸直腸癌","胃癌","頭頸癌"],"p":false,"k":[]},{"n":86,"g":"Vandetanib","b":"Caprelsa","c":["甲狀腺癌"],"p":true,"k":[]},{"n":52,"g":"Vemurafenib","b":"Zelboraf","c":["黑色素瘤"],"p":true,"k":["BRAF"]},{"n":71,"g":"Venetoclax","b":"Venclexta","c":["血液腫瘤/白血病"],"p":true,"k":["CD20","del(17p)/TP53"]},{"n":9,"g":"Vinorelbine","b":"","c":["肺癌","乳癌"],"p":false,"k":[]},{"n":104,"g":"Zanubrutinib","b":"Brukinsa","c":["血液腫瘤/白血病","淋巴瘤"],"p":true,"k":["CD20","del(17p)/TP53"]},{"n":133,"g":"Zolbetuximab","b":"Vyloy","c":["胃癌"],"p":true,"k":["EGFR","HER2"]}];
+var CANCERS = ["乳癌", "卵巢癌", "多發性骨髓瘤", "大腸直腸癌", "子宮/婦科", "攝護腺癌", "泌尿上皮癌", "淋巴瘤", "甲狀腺癌", "神經母細胞瘤", "肝癌", "肺癌", "胃癌", "胃腸道基質瘤", "胰臟癌", "腎細胞癌", "腦瘤/膠質瘤", "膽道癌", "血液腫瘤/白血病", "頭頸癌", "食道癌", "黑色素瘤"];
+var QUICK = ["Nivolumab","Pembrolizumab","Ipilimumab","Dabrafenib","Trametinib","Lenvatinib","Daratumumab","Bortezomib","Lenalidomide","Pomalidomide"];
+
+var LS = {
+  get:function(k,d){try{var v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},
+  set:function(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+};
+var cfg = LS.get('nhirx.cfg',{});
+function gasUrl(){return cfg.url||DEFAULT_GAS_URL}
+function validUrl(u){return /^https:\/\/script\.google\.com\//.test(u)||/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//.test(u)}
+function secret(){return cfg.secret||DEFAULT_SECRET}
+function doctor(){return cfg.doc||""}
+
+var $=function(s){return document.querySelector(s)};
+var state={type:'初次',cancer:null,drugs:[],q:''};
+
+/* ---- tabs ---- */
+document.querySelectorAll('.tabs button').forEach(function(b){b.onclick=function(){
+  document.querySelectorAll('.tabs button').forEach(function(x){x.classList.remove('on')});b.classList.add('on');
+  var t=b.dataset.tab;$('#tab-form').classList.toggle('hid',t!=='form');$('#tab-list').classList.toggle('hid',t!=='list');
+  $('#submitBar').classList.toggle('hid',t!=='form');if(t==='list')loadList();
+}});
+
+/* ---- type ---- */
+$('#tFirst').onclick=function(){state.type='初次';$('#tFirst').classList.add('on');$('#tRenew').classList.remove('on')};
+$('#tRenew').onclick=function(){state.type='續用';$('#tRenew').classList.add('on');$('#tFirst').classList.remove('on')};
+
+/* ---- cancers ---- */
+var cwrap=$('#cancers');
+CANCERS.forEach(function(c){var s=document.createElement('span');s.className='chip';s.textContent=c;s.onclick=function(){
+  state.cancer=(state.cancer===c)?null:c;cwrap.querySelectorAll('.chip').forEach(function(x){x.classList.toggle('on',x.textContent===state.cancer)});renderList();
+};cwrap.appendChild(s)});
+
+/* ---- drugs ---- */
+function drugLabel(d){return d.g+(d.b?'（'+d.b.split('；')[0]+'）':'')}
+function matches(d,q){q=q.toLowerCase();return !q||d.g.toLowerCase().indexOf(q)>=0||d.b.toLowerCase().indexOf(q)>=0}
+function renderList(){
+  var q=$('#q').value.trim();var box=$('#dl');box.innerHTML='';
+  var arr=DRUGS.filter(function(d){return matches(d,q)&&(!state.cancer||d.c.indexOf(state.cancer)>=0)});
+  if(!q&&!state.cancer){box.innerHTML='<div class="note" style="cursor:default">輸入關鍵字或選癌別以列出藥物；或點上方常用藥。</div>';return}
+  if(!arr.length){box.innerHTML='<div class="note" style="cursor:default">找不到，可改用「其他」直接輸入藥名。</div>'}
+  arr.slice(0,60).forEach(function(d){var el=document.createElement('div');
+    el.innerHTML='<b>'+esc(d.g)+'</b>'+(d.p?'<span class="pa">需事前審查</span>':'')+'<small>'+esc(d.b||'')+(d.c.length?' · '+esc(d.c.slice(0,4).join('/')):'')+'</small>';
+    el.onclick=function(){addDrug(d.g)};box.appendChild(el)});
+  var other=document.createElement('div');other.innerHTML='<b>其他：'+esc(q||'（輸入藥名）')+'</b><small>不在第9節清單，直接以輸入文字登錄</small>';
+  other.onclick=function(){if(q)addDrug(q)};box.appendChild(other);
+}
+function addDrug(n){if(state.drugs.indexOf(n)<0)state.drugs.push(n);$('#q').value='';renderSel();renderList();validate()}
+function rmDrug(n){state.drugs=state.drugs.filter(function(x){return x!==n});renderSel();validate()}
+function renderSel(){var w=$('#selDrugs');w.innerHTML='';state.drugs.forEach(function(n){var s=document.createElement('span');s.className='chip sel';s.innerHTML=esc(n)+'<span class="x">✕</span>';s.onclick=function(){rmDrug(n)};w.appendChild(s)})}
+function renderRecent(){var r=LS.get('nhirx.recent',[]);var names=r.concat(QUICK.filter(function(x){return r.indexOf(x)<0})).slice(0,10);
+  var w=$('#recent');w.innerHTML='';names.forEach(function(n){var s=document.createElement('span');s.className='chip';s.textContent=n;s.onclick=function(){addDrug(n)};w.appendChild(s)})}
+$('#q').oninput=renderList;
+$('#q').onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();var f=$('#dl div');if(f)f.click()}};
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+
+/* ---- validate / submit ---- */
+function validate(){var ok=/^\d{5,10}$/.test($('#mrn').value.trim())&&state.drugs.length>0;$('#btnSubmit').disabled=!ok;return ok}
+$('#mrn').oninput=validate;
+
+function payload(){return{action:'submit',secret:secret(),mrn:$('#mrn').value.trim(),name:$('#pname').value.trim(),cancer:state.cancer||'',
+  drugs:state.drugs.join(' + '),type:state.type,memo:$('#memo').value.trim(),doctor:doctor(),client_ts:new Date().toISOString(),
+  nonce:Date.now().toString(36)+Math.random().toString(36).slice(2,8)}}
+
+function post(body){
+  return fetch(gasUrl(),{method:'POST',body:JSON.stringify(body),headers:{'Content-Type':'text/plain;charset=utf-8'}})
+    .then(function(r){return r.text()}).then(function(t){try{return JSON.parse(t)}catch(e){throw new Error('回應非 JSON：'+t.slice(0,80))}});
+}
+var busy=false;
+$('#btnSubmit').onclick=function(){
+  if(busy||!validate())return;
+  if(!validUrl(gasUrl())){toast('尚未設定後端 URL（⚙），先存入待送','warn');queue(payload());resetForm();return}
+  busy=true;$('#btnSubmit').disabled=true;$('#btnSubmit').textContent='送出中…';
+  var p=payload();
+  post(p).then(function(r){
+    if(r.status!=='ok')throw new Error(r.message||'伺服器拒絕');
+    toast('已登錄 #'+r.id+'　'+p.mrn+'　'+p.drugs+(r.dup?'（重複，沿用原編號）':''));
+    remember(p);resetForm();
+  }).catch(function(e){queue(p);toast('送出失敗，已存待送：'+e.message,'err');resetForm()})
+  .finally(function(){busy=false;$('#btnSubmit').textContent='送出登錄'});
+};
+function remember(p){var r=LS.get('nhirx.recent',[]);p.drugs.split(' + ').forEach(function(n){r=[n].concat(r.filter(function(x){return x!==n}))});LS.set('nhirx.recent',r.slice(0,10));renderRecent();
+  var local=LS.get('nhirx.today',[]);local.unshift({ts:p.client_ts,mrn:p.mrn,drugs:p.drugs,type:p.type});LS.set('nhirx.today',local.slice(0,50))}
+function resetForm(){$('#mrn').value='';$('#pname').value='';$('#memo').value='';state.drugs=[];renderSel();validate();$('#mrn').focus()}
+
+/* ---- offline queue ---- */
+function queue(p){var q=LS.get('nhirx.queue',[]);q.push(p);LS.set('nhirx.queue',q);renderQueue()}
+function renderQueue(){var q=LS.get('nhirx.queue',[]);$('#qn').textContent=q.length;$('#btnQueue').classList.toggle('hid',!q.length)}
+$('#btnQueue').onclick=flush;
+function flush(){var q=LS.get('nhirx.queue',[]);if(!q.length)return;if(!validUrl(gasUrl())){toast('先在 ⚙ 設定後端 URL','warn');return}
+  var p=q[0];p.secret=secret();p.doctor=p.doctor||doctor();
+  post(p).then(function(r){if(r.status!=='ok')throw new Error(r.message||'拒絕');q.shift();LS.set('nhirx.queue',q);remember(p);renderQueue();toast('補送成功 #'+r.id);if(q.length)flush()})
+  .catch(function(e){toast('補送失敗：'+e.message,'err')})}
+window.addEventListener('online',function(){if(LS.get('nhirx.queue',[]).length)flush()});
+
+/* ---- list ---- */
+function loadList(){
+  var tb=$('#tbl tbody');tb.innerHTML='';$('#listNote').textContent='';
+  if(!validUrl(gasUrl())){$('#listNote').textContent='尚未設定後端 URL，僅顯示本機紀錄。';renderRows(LS.get('nhirx.today',[]).map(function(x){return{id:'',ts:x.ts,mrn:x.mrn,drugs:x.drugs,type:x.type,status:'本機',valid:''}}));return}
+  $('#listNote').textContent='載入中…';
+  post({action:'list',secret:secret(),limit:100}).then(function(r){if(r.status!=='ok')throw new Error(r.message||'拒絕');$('#listNote').textContent='共 '+r.rows.length+' 筆（最近 100）';renderRows(r.rows)})
+  .catch(function(e){$('#listNote').textContent='讀取失敗：'+e.message})
+}
+function stClass(s){return s==='待送'?'st-wait':s==='已送審'?'st-sent':/核准/.test(s)?'st-ok':/駁回/.test(s)?'st-no':/補件/.test(s)?'st-q':''}
+function renderRows(rows){var tb=$('#tbl tbody');rows.forEach(function(r){var tr=document.createElement('tr');
+  tr.innerHTML='<td>'+esc(r.id)+'</td><td>'+esc(String(r.ts||'').slice(5,10))+'</td><td>'+esc(r.mrn)+'</td><td>'+esc(r.drugs)+'</td><td>'+esc(r.type)+'</td><td><span class="st '+stClass(r.status)+'">'+esc(r.status||'')+'</span></td><td>'+esc(r.valid||'')+'</td>';tb.appendChild(tr)})}
+$('#btnReload').onclick=loadList;
+
+/* ---- settings ---- */
+$('#btnSet').onclick=function(){$('#sUrl').value=cfg.url||DEFAULT_GAS_URL;$('#sSecret').value=cfg.secret||DEFAULT_SECRET;$('#sDoc').value=cfg.doc||'';$('#dlg').showModal()};
+$('#sCancel').onclick=function(){$('#dlg').close()};
+$('#sSave').onclick=function(){cfg={url:$('#sUrl').value.trim(),secret:$('#sSecret').value.trim(),doc:$('#sDoc').value.trim()};LS.set('nhirx.cfg',cfg);$('#dlg').close();toast('設定已儲存');renderQueue()};
+
+/* ---- toast ---- */
+var tt;function toast(m,k){var t=document.createElement('div');t.className='toast'+(k?' '+k:'');t.textContent=m;document.body.appendChild(t);clearTimeout(tt);setTimeout(function(){t.remove()},k==='err'?5000:3200)}
+
+
+/* ---- v1.1 photo OCR (on-device, tesseract.js) ---- */
+var OCR_WORKER=null;
+function ocrWorker(){
+  if(OCR_WORKER)return OCR_WORKER;
+  OCR_WORKER=Tesseract.createWorker('eng',1,{logger:function(m){if(m.status==='recognizing text')$('#photoStatus').textContent='辨識中 '+Math.round(m.progress*100)+'%'}})
+    .then(function(w){return w.setParameters({tessedit_char_whitelist:'0123456789[]',tessedit_pageseg_mode:'6'}).then(function(){return w})});
+  return OCR_WORKER;
+}
+function preprocess(img){
+  var cv=$('#cv'),W=1200,scale=W/img.width,H=Math.round(img.height*scale);
+  cv.width=W;cv.height=Math.round(H*0.27);
+  var ctx=cv.getContext('2d');ctx.drawImage(img,0,Math.round(img.height*0.03),img.width,Math.round(img.height*0.27),0,0,W,cv.height);
+  var d=ctx.getImageData(0,0,cv.width,cv.height),p=d.data,min=255,max=0,i;
+  for(i=0;i<p.length;i+=4){var g=(p[i]*0.299+p[i+1]*0.587+p[i+2]*0.114);p[i]=g;if(g<min)min=g;if(g>max)max=g}
+  var rng=Math.max(1,max-min);
+  for(i=0;i<p.length;i+=4){var v=(p[i]-min)*255/rng;v=v>150?255:0;p[i]=p[i+1]=p[i+2]=v}
+  ctx.putImageData(d,0,0);return cv;
+}
+function handleImageFile(f){
+  if(!f)return;
+  $('#photoStatus').textContent='載入照片…';
+  var img=new Image();img.onload=function(){
+    var cv=preprocess(img);$('#crop').src=cv.toDataURL('image/png');$('#crop').classList.remove('hid');
+    $('#photoStatus').textContent='載入辨識引擎…';
+    ocrWorker().then(function(w){return w.recognize(cv)}).then(function(r){
+      var txt=r.data.text||'';var cands=[];(txt.match(/\d{6,9}/g)||[]).forEach(function(n){if(cands.indexOf(n)<0)cands.push(n)});
+      var br=(txt.match(/\[\s*(\d{5,9})\s*\]/)||[])[1];
+      if(br){cands=[br].concat(cands.filter(function(x){return x!==br}))}
+      if(!cands.length){$('#photoStatus').textContent='沒讀到病歷號，請手動輸入或重拍（畫面要正、字要清楚）。';return}
+      $('#mrn').value=cands[0];validate();
+      $('#photoStatus').innerHTML='已填入 <b>'+esc(cands[0])+'</b>，請核對。'+(cands.length>1?'其他候選：':'');
+      var box=document.createElement('span');box.className='cands';
+      cands.slice(1,4).forEach(function(n){var s=document.createElement('span');s.className='chip';s.textContent=n;s.onclick=function(){$('#mrn').value=n;validate()};box.appendChild(s)});
+      $('#photoStatus').appendChild(box);$('#mrn').focus();
+    }).catch(function(e){$('#photoStatus').textContent='辨識失敗：'+e.message+'（可手動輸入）'});
+  };img.src=URL.createObjectURL(f);
+}
+$('#photo').onchange=function(){var f=this.files&&this.files[0];this.value='';handleImageFile(f)};
+document.addEventListener('paste',function(e){var items=(e.clipboardData||{}).items||[];for(var i=0;i<items.length;i++){if(items[i].type.indexOf('image')===0){e.preventDefault();handleImageFile(items[i].getAsFile());return}}});
+
+renderRecent();renderList();renderQueue();validate();
+</script>
+</body>
+</html>
