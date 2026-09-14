@@ -155,7 +155,9 @@ var $=function(s){return document.querySelector(s)};
 var sess = LS.get('nhirx.admin',null);
 var rows=[], filter='待送', selected=null, timer=null, lastSeen=LS.get('nhirx.admin.lastSeen',0);
 
-function post(body){return fetch(gasUrl(),{method:'POST',body:JSON.stringify(body),headers:{'Content-Type':'text/plain;charset=utf-8'}}).then(function(r){return r.text()}).then(function(t){try{return JSON.parse(t)}catch(e){throw new Error('回應非 JSON')}})}
+function post(body,attempt){attempt=attempt||0;return fetch(gasUrl(),{method:'POST',body:JSON.stringify(body),headers:{'Content-Type':'text/plain;charset=utf-8'}}).then(function(r){return r.text()}).then(function(t){var j;try{j=JSON.parse(t)}catch(e){throw new Error('回應非 JSON')}
+  if(j&&j.message==='busy, retry'&&attempt<3){return new Promise(function(res){setTimeout(res,1500*(attempt+1))}).then(function(){return post(body,attempt+1)})}
+  return j})}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
 function toast(m,k){var t=document.createElement('div');t.className='toast'+(k?' '+k:'');t.textContent=m;document.body.appendChild(t);setTimeout(function(){t.remove()},k==='err'?5000:3000)}
 function stClass(s){return s==='待送'?'st-wait':s==='已送審'?'st-sent':/核准|結案/.test(s)?'st-ok':/駁回/.test(s)?'st-no':/補件/.test(s)?'st-q':''}

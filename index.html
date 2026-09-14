@@ -211,9 +211,12 @@ function payload(){return{action:'submit',secret:secret(),mrn:$('#mrn').value.tr
   drugs:state.drugs.join(' + '),type:state.type,memo:$('#memo').value.trim(),doctor:doctor(),client_ts:new Date().toISOString(),
   nonce:Date.now().toString(36)+Math.random().toString(36).slice(2,8)}}
 
-function post(body){
+function post(body,attempt){
+  attempt=attempt||0;
   return fetch(gasUrl(),{method:'POST',body:JSON.stringify(body),headers:{'Content-Type':'text/plain;charset=utf-8'}})
-    .then(function(r){return r.text()}).then(function(t){try{return JSON.parse(t)}catch(e){throw new Error('回應非 JSON：'+t.slice(0,80))}});
+    .then(function(r){return r.text()}).then(function(t){var j;try{j=JSON.parse(t)}catch(e){throw new Error('回應非 JSON：'+t.slice(0,80))}
+      if(j&&j.message==='busy, retry'&&attempt<3){return new Promise(function(res){setTimeout(res,1500*(attempt+1))}).then(function(){return post(body,attempt+1)})}
+      return j});
 }
 var busy=false;
 function sendCase(p,onDone){
