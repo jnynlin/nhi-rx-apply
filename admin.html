@@ -77,6 +77,7 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
 <header>
   <h1>健保事前審查 · 行政清單 <span class="badge hid" id="badge">0</span></h1>
   <span class="note" id="who" style="color:#c7d2fe"></span>
+  <button id="btnRoster" class="hid" title="醫師管理（管理員）">👥 醫師管理</button>
   <button id="btnNotif" title="開啟瀏覽器通知">🔔</button>
   <button id="btnSet" title="設定">⚙</button>
   <button id="btnLogout" class="hid">登出</button>
@@ -87,7 +88,7 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
     <h2 style="margin:.2rem 0 .8rem;font-size:1.15rem">行政人員登入</h2>
     <label class="l">姓名</label><input type="text" id="lname" autocomplete="name">
     <label class="l">行政密碼</label><input type="password" id="lcode" autocomplete="current-password">
-    <div class="note" style="margin:.5rem 0">密碼由承辦醫師提供。登入後可看到所有登錄案件並回填處理狀態。</div>
+    <div class="note" style="margin:.5rem 0">密碼由承辦醫師提供。登入後可看到所有登錄案件並回填處理狀態。管理員密碼另可管理醫師名單與 PIN 碼。</div>
     <button class="btn" id="btnLogin" style="width:100%;margin-top:.4rem">登入</button>
   </div>
 </main>
@@ -135,11 +136,28 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
   </div>
 </main>
 
+<dialog id="dlgRoster" style="max-width:720px">
+  <div class="row" style="margin-bottom:.4rem"><b style="font-size:1.1rem">醫師管理</b><button class="btn2" id="rClose" style="flex:0 0 auto">關閉</button></div>
+  <div class="note">PIN 碼只儲存雜湊值，設定後請當面或電話告知醫師。重設 PIN 會讓該醫師所有裝置需要重新登入。</div>
+  <div style="max-height:46vh;overflow:auto;margin:.6rem 0"><table id="rTbl"><thead><tr><th>姓名</th><th>科別</th><th>email</th><th>PIN</th><th>裝置</th><th>啟用</th><th></th></tr></thead><tbody></tbody></table></div>
+  <hr style="border:0;border-top:1px solid var(--border);margin:.6rem 0">
+  <b style="font-size:.95rem">新增 / 修改</b>
+  <div class="grid" style="margin-top:.4rem">
+    <div><label class="l">姓名 *</label><input type="text" id="rName"></div>
+    <div><label class="l">科別</label><input type="text" id="rDept" placeholder="血液腫瘤科"></div>
+    <div><label class="l">email（狀態通知）</label><input type="text" id="rEmail"></div>
+    <div><label class="l">設定 PIN（留空不變）</label><input type="text" id="rPin" inputmode="numeric" placeholder="4-6 位數字"></div>
+  </div>
+  <div class="row" style="margin-top:.6rem"><span class="note" id="rNote"></span><button class="btn" id="rSave" style="flex:0 0 auto">儲存</button></div>
+</dialog>
+
 <dialog id="dlg">
   <h3 style="margin:.2rem 0 .6rem">設定</h3>
   <label class="l">後端 URL（GAS /exec）</label><input type="text" id="sUrl">
   <label class="l">共用密碼</label><input type="text" id="sSecret">
-  <div class="row" style="margin-top:.8rem"><button class="btn2" id="sCancel">取消</button><button class="btn" id="sSave">儲存</button></div>
+  <div class="note" id="sTestNote" style="margin-top:.5rem"></div>
+  <div class="row" style="margin-top:.8rem"><button class="btn2" id="sTest">測試連線</button><button class="btn2" id="sReset">恢復預設</button></div>
+  <div class="row" style="margin-top:.5rem"><button class="btn2" id="sCancel">取消</button><button class="btn" id="sSave">儲存</button></div>
 </dialog>
 
 <script>
@@ -155,7 +173,7 @@ function validUrl(u){return /^https:\/\/script\.google\.com\//.test(u)||/^https?
 var $=function(s){return document.querySelector(s)};
 var sess = LS.get('nhirx.admin',null);
 var rows=[], filter='待送', docFilter='', roster=[], selected=null, timer=null, lastSeen=LS.get('nhirx.admin.lastSeen',0);
-function loadRoster(){post({action:'config',secret:secret()}).then(function(r){if(r.status==='ok'&&r.doctors)roster=r.doctors;renderDocFilters()}).catch(function(){})}
+function loadRoster(){return post({action:'config',secret:secret(),admin_code:sess.code}).then(function(r){if(r.status==='ok'&&r.doctors)roster=r.doctors;renderDocFilters();return roster}).catch(function(){return roster})}
 function renderDocFilters(){
   var names=[];roster.forEach(function(d){if(names.indexOf(d.name)<0)names.push(d.name)});
   rows.forEach(function(x){var n=String(x.doctor||'').trim();if(n&&names.indexOf(n)<0)names.push(n)});
@@ -178,7 +196,9 @@ function overdue(r){if(r.status!=='已送審'||!r.sent)return null;var m=daysFro
 function flags(r){var f=[];var e=expiring(r);if(e!==null)f.push('<span class="flag flag-exp">'+(e<0?'已到期':'到期 '+e+'天')+'</span>');var o=overdue(r);if(o!==null)f.push('<span class="flag flag-over">逾期 '+o+'天</span>');return f.join('')}
 
 /* ---- login ---- */
-function showApp(){$('#login').classList.add('hid');$('#app').classList.remove('hid');$('#btnLogout').classList.remove('hid');$('#who').textContent=sess.name;loadRoster();load();if(timer)clearInterval(timer);timer=setInterval(load,60000)}
+function showApp(){$('#login').classList.add('hid');$('#app').classList.remove('hid');$('#btnLogout').classList.remove('hid');
+  $('#who').textContent=sess.name+(sess.role==='super'?'（管理員）':'');$('#btnRoster').classList.toggle('hid',sess.role!=='super');
+  loadRoster();load();if(timer)clearInterval(timer);timer=setInterval(load,60000)}
 $('#btnLogin').onclick=function(){
   var name=$('#lname').value.trim(),code=$('#lcode').value.trim();
   if(!name||!code){toast('請輸入姓名與密碼','warn');return}
@@ -186,7 +206,7 @@ $('#btnLogin').onclick=function(){
   $('#btnLogin').disabled=true;
   post({action:'login',secret:secret(),admin_code:code}).then(function(r){
     if(r.status!=='ok')throw new Error('密碼錯誤');
-    sess={name:name,code:code};LS.set('nhirx.admin',sess);showApp();
+    sess={name:name,code:code,role:r.role||'admin'};LS.set('nhirx.admin',sess);showApp();
   }).catch(function(e){toast(e.message,'err')}).finally(function(){$('#btnLogin').disabled=false});
 };
 $('#lcode').onkeydown=function(e){if(e.key==='Enter')$('#btnLogin').click()};
@@ -196,7 +216,7 @@ $('#btnLogout').onclick=function(){sess=null;LS.del('nhirx.admin');if(timer)clea
 function load(){
   if(!sess)return;
   $('#status').textContent='載入中…';
-  post({action:'list',secret:secret(),limit:500}).then(function(r){
+  post({action:'list',secret:secret(),admin_code:sess.code,limit:500}).then(function(r){
     if(r.status!=='ok')throw new Error(r.message||'讀取失敗');
     var prevMax=rows.length?Math.max.apply(null,rows.map(function(x){return Number(x.id)||0})):lastSeen;
     rows=r.rows;
@@ -265,7 +285,7 @@ function openEdit(x){
   if(Number(x.id)>lastSeen){lastSeen=Number(x.id);LS.set('nhirx.admin.lastSeen',lastSeen)}
   render();$('#edit').scrollIntoView({behavior:'smooth',block:'nearest'});
   $('#eHist').innerHTML='<li class="note">載入中…</li>';
-  post({action:'history',secret:secret(),id:x.id}).then(function(r){
+  post({action:'history',secret:secret(),admin_code:sess.code,id:x.id}).then(function(r){
     if(r.status!=='ok')throw new Error(r.message||'');
     if(!r.rows.length){$('#eHist').innerHTML='<li class="note">無歷程紀錄</li>';return}
     $('#eHist').innerHTML=r.rows.map(function(h){return '<li>'+(h.from?esc(h.from)+' → ':'建立 → ')+'<b>'+esc(h.to)+'</b>'+(h.fields?' <small>('+esc(h.fields)+')</small>':'')+'<br><small>'+esc(h.ts)+'　'+esc(h.who)+'</small></li>'}).join('');
@@ -294,11 +314,49 @@ $('#eCopy').onclick=function(){
   if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(done).catch(function(){prompt('請手動複製：',t)})}else{prompt('請手動複製：',t)}
 };
 
+/* ---- roster management (super admin only) ---- */
+function renderRoster(){
+  var tb=$('#rTbl tbody');tb.innerHTML='';
+  roster.forEach(function(d){var tr=document.createElement('tr');
+    tr.innerHTML='<td><b>'+esc(d.name)+'</b></td><td>'+esc(d.dept||'')+'</td><td>'+esc(d.email||'')+'</td>'+
+      '<td>'+(d.has_pin?'<span class="st st-ok">已設</span>':'<span class="st st-wait">未設</span>')+'</td>'+
+      '<td>'+(d.active?'<span class="st st-sent">已登入</span>':'—')+'</td>'+
+      '<td>'+(d.enabled===false?'<span class="st st-no">停用</span>':'啟用')+'</td>'+
+      '<td><button class="btnR" data-edit="'+esc(d.name)+'">編輯</button> <button class="btnR" data-reset="'+esc(d.name)+'" style="background:var(--danger)">重設PIN</button></td>';
+    tb.appendChild(tr)});
+  tb.querySelectorAll('[data-edit]').forEach(function(b){b.onclick=function(){var d=roster.filter(function(x){return x.name===b.dataset.edit})[0];
+    $('#rName').value=d.name;$('#rDept').value=d.dept||'';$('#rEmail').value=d.email||'';$('#rPin').value='';$('#rNote').textContent='修改 '+d.name+'（PIN 留空則不變）'}});
+  tb.querySelectorAll('[data-reset]').forEach(function(b){b.onclick=function(){var n=b.dataset.reset;
+    if(!confirm('重設 '+n+' 的 PIN？該醫師所有裝置需重新登入，並要重新設定 PIN。'))return;
+    post({action:'roster_reset_pin',secret:secret(),admin_code:sess.code,name:n}).then(function(r){
+      if(r.status!=='ok')throw new Error(r.message);toast('已重設 '+n+' 的 PIN');loadRoster().then(renderRoster)}).catch(function(e){toast(e.message,'err')})}});
+}
+$('#btnRoster').onclick=function(){loadRoster().then(function(){renderRoster();$('#rName').value='';$('#rDept').value='';$('#rEmail').value='';$('#rPin').value='';$('#rNote').textContent='';$('#dlgRoster').showModal()})};
+$('#rClose').onclick=function(){$('#dlgRoster').close()};
+$('#rSave').onclick=function(){
+  var n=$('#rName').value.trim();if(!n){$('#rNote').textContent='請輸入姓名';return}
+  var pin=$('#rPin').value.trim();
+  if(pin&&!/^\d{4,6}$/.test(pin)){$('#rNote').textContent='PIN 請用 4-6 位數字';return}
+  var p={action:'roster_set',secret:secret(),admin_code:sess.code,name:n,dept:$('#rDept').value.trim()||'血液腫瘤科',email:$('#rEmail').value.trim()};
+  if(pin)p.pin=pin;
+  $('#rSave').disabled=true;
+  post(p).then(function(r){if(r.status!=='ok')throw new Error(r.message);
+    $('#rNote').textContent=r.pin_set?('已儲存　'+n+' 的 PIN 為 '+pin+'（請告知本人，此畫面關閉後不再顯示）'):'已儲存 '+n;
+    $('#rPin').value='';loadRoster().then(renderRoster)})
+  .catch(function(e){$('#rNote').textContent='失敗：'+e.message}).finally(function(){$('#rSave').disabled=false});
+};
+
 /* ---- notifications / settings ---- */
 $('#btnNotif').onclick=function(){if(!window.Notification){toast('此瀏覽器不支援通知','warn');return}Notification.requestPermission().then(function(p){toast(p==='granted'?'已開啟瀏覽器通知':'未開啟通知','warn')})};
-$('#btnSet').onclick=function(){$('#sUrl').value=cfg.url||DEFAULT_GAS_URL;$('#sSecret').value=cfg.secret||DEFAULT_SECRET;$('#dlg').showModal()};
+$('#btnSet').onclick=function(){$('#sUrl').value=cfg.url||DEFAULT_GAS_URL;$('#sSecret').value=cfg.secret||DEFAULT_SECRET;$('#sTestNote').textContent='';$('#dlg').showModal()};
 $('#sCancel').onclick=function(){$('#dlg').close()};
 $('#sSave').onclick=function(){cfg={url:$('#sUrl').value.trim(),secret:$('#sSecret').value.trim()};LS.set('nhirx.cfg',cfg);$('#dlg').close();toast('設定已儲存')};
+$('#sTest').onclick=function(){var u=$('#sUrl').value.trim();
+  if(!validUrl(u)){$('#sTestNote').textContent='網址格式不正確（需 script.google.com/.../exec）';return}
+  $('#sTestNote').textContent='測試中…';
+  fetch(u,{method:'GET'}).then(function(r){return r.text()}).then(function(t){var j;try{j=JSON.parse(t)}catch(e){throw new Error('回應非 JSON，請確認部署存取權為「所有人」')}
+    $('#sTestNote').textContent='連線成功　服務 '+(j.service||'?')+'　版本 '+(j.contract||'?')}).catch(function(e){$('#sTestNote').textContent='連線失敗：'+e.message})};
+$('#sReset').onclick=function(){if(!confirm('恢復內建的後端網址與密碼？（登入狀態會保留）'))return;cfg={};LS.set('nhirx.cfg',cfg);$('#sUrl').value=DEFAULT_GAS_URL;$('#sSecret').value=DEFAULT_SECRET;$('#sTestNote').textContent='已恢復預設';toast('已恢復預設設定')};
 
 if(sess)showApp();
 </script>

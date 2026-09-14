@@ -131,11 +131,11 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
 <div class="submit" id="submitBar"><button id="btnSubmit" disabled>送出登錄</button></div>
 
 <dialog id="dlgDoc">
-  <h3 style="margin:.2rem 0 .3rem">請選擇登錄醫師</h3>
-  <div class="note" style="margin-bottom:.6rem">送出的案件會記在這位醫師名下，清單也只顯示自己的案件。此裝置會記住選擇，可從右上 👤 切換。</div>
-  <div class="chips" id="docChips"></div>
-  <label class="l" style="margin-top:.6rem">不在名單？直接輸入</label>
-  <div class="row"><input type="text" id="docOther" placeholder="醫師姓名"><button class="btn2" id="docOtherOk" style="flex:0 0 auto">確定</button></div>
+  <h3 style="margin:.2rem 0 .3rem">醫師登入</h3>
+  <div class="note" style="margin-bottom:.6rem">輸入姓名與 PIN 碼登入一次，此裝置會記住；案件記在您名下，清單也只顯示自己的案件。PIN 碼向行政索取。</div>
+  <label class="l">姓名</label><input type="text" id="docName" placeholder="例 林振源" autocomplete="off">
+  <label class="l">PIN 碼</label><input type="password" id="docPin" inputmode="numeric" autocomplete="current-password">
+  <div class="row" style="margin-top:.8rem"><button class="btn2" id="docCancel">取消</button><button class="btn2" id="docLogin" style="background:var(--primary);color:#fff;border-color:var(--primary)">登入</button></div>
   <div class="note" id="docNote" style="margin-top:.5rem"></div>
 </dialog>
 
@@ -145,9 +145,9 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
   <input type="text" id="sUrl" placeholder="https://script.google.com/macros/s/.../exec">
   <label class="l">共用密碼</label>
   <input type="text" id="sSecret">
-  <label class="l">登錄醫師</label>
-  <input type="text" id="sDoc" placeholder="林振源">
-  <div class="row" style="margin-top:.8rem"><button class="btn2" id="sCancel">取消</button><button class="btn2" id="sSave" style="background:var(--primary);color:#fff;border-color:var(--primary)">儲存</button></div>
+  <div class="note" id="sTestNote" style="margin-top:.5rem"></div>
+  <div class="row" style="margin-top:.8rem"><button class="btn2" id="sTest">測試連線</button><button class="btn2" id="sReset">恢復預設</button></div>
+  <div class="row" style="margin-top:.5rem"><button class="btn2" id="sCancel">取消</button><button class="btn2" id="sSave" style="background:var(--primary);color:#fff;border-color:var(--primary)">儲存</button></div>
 </dialog>
 
 <script>
@@ -167,30 +167,46 @@ var cfg = LS.get('nhirx.cfg',{});
 function gasUrl(){return cfg.url||DEFAULT_GAS_URL}
 function validUrl(u){return /^https:\/\/script\.google\.com\//.test(u)||/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//.test(u)}
 function secret(){return cfg.secret||DEFAULT_SECRET}
-function doctor(){return cfg.doc||""}
+var auth = LS.get('nhirx.doc',{});                 /* {name, token} — kept apart from cfg so 恢復預設 doesn't log you out */
+function doctor(){return auth.name||""}
+function docToken(){return auth.token||""}
 
 var $=function(s){return document.querySelector(s)};
-var state={type:'初次',cancer:null,drugs:[],q:'',rows:[],lf:'active',doctors:LS.get('nhirx.doctors',[])};
+var state={type:'初次',cancer:null,drugs:[],q:'',rows:[],lf:'active'};
 
-/* ---- v1.3 physician identity: ?doc=姓名 link, or pick from roster (config action), remembered per device ---- */
-(function(){try{var m=location.search.match(/[?&]doc=([^&]+)/);if(m){cfg.doc=decodeURIComponent(m[1].replace(/\+/g,' ')).trim();LS.set('nhirx.cfg',cfg);history.replaceState(null,'',location.pathname+location.hash)}}catch(e){}})();
-function renderDoc(){$('#btnDoc').textContent='👤 '+(doctor()||'未選醫師')}
-function loadRoster(){
-  if(!validUrl(gasUrl()))return Promise.resolve(state.doctors);
-  return post({action:'config',secret:secret()}).then(function(r){if(r.status==='ok'&&r.doctors){state.doctors=r.doctors;LS.set('nhirx.doctors',r.doctors)}return state.doctors}).catch(function(){return state.doctors});
-}
+/* ---- v1.4 physician identity: name + PIN -> device token. ?doc=姓名 only pre-fills the name. ---- */
+var preName='';
+(function(){try{var m=location.search.match(/[?&]doc=([^&]+)/);if(m){preName=decodeURIComponent(m[1].replace(/\+/g,' ')).trim();history.replaceState(null,'',location.pathname+location.hash)}}catch(e){}})();
+function renderDoc(){$('#btnDoc').textContent='👤 '+(doctor()||'請登入')}
 function openDocDialog(){
-  var w=$('#docChips');w.innerHTML='';
-  state.doctors.forEach(function(d){var s=document.createElement('span');s.className='chip'+(d.name===doctor()?' on':'');s.textContent=d.name+(d.dept?'（'+d.dept+'）':'');s.onclick=function(){setDoctor(d.name)};w.appendChild(s)});
-  $('#docNote').textContent=state.doctors.length?'':'（尚未取得醫師名單，可直接輸入姓名）';
-  $('#docOther').value='';$('#dlgDoc').showModal();
-  if(!state.doctors.length)loadRoster().then(function(){if($('#dlgDoc').open)openDocDialog()});
+  $('#docName').value=doctor()||preName;$('#docPin').value='';$('#docNote').textContent='';
+  $('#dlgDoc').showModal();setTimeout(function(){($('#docName').value?$('#docPin'):$('#docName')).focus()},50);
 }
-function setDoctor(n){n=String(n||'').trim();if(!n)return;cfg.doc=n;LS.set('nhirx.cfg',cfg);renderDoc();$('#dlgDoc').close();validate();toast('登錄醫師：'+n);if(!$('#tab-list').classList.contains('hid'))loadList()}
+function doLogin(){
+  var n=$('#docName').value.trim(),p=$('#docPin').value.trim();
+  if(!n||!p){$('#docNote').textContent='請輸入姓名與 PIN 碼';return}
+  if(!validUrl(gasUrl())){$('#docNote').textContent='尚未設定後端 URL（⚙）';return}
+  $('#docLogin').disabled=true;$('#docNote').textContent='登入中…';
+  post({action:'login_doc',secret:secret(),name:n,pin:p}).then(function(r){
+    if(r.status!=='ok'){
+      var msg=r.message==='bad pin'?('PIN 碼錯誤'+(r.left!==undefined?'，再錯 '+r.left+' 次將鎖定':'')):
+              r.message==='locked'?('嘗試過多，請 '+(r.minutes||15)+' 分鐘後再試'):
+              r.message==='no pin set'?'尚未設定 PIN 碼，請向行政索取':
+              r.message==='no such doctor'?'名單中查無此姓名，請確認或洽行政':r.message;
+      $('#docNote').textContent=msg;return;
+    }
+    auth={name:r.name,token:r.token};LS.set('nhirx.doc',auth);
+    renderDoc();$('#dlgDoc').close();validate();toast('已登入：'+r.name+(r.dept?'（'+r.dept+'）':''));
+    if(!$('#tab-list').classList.contains('hid'))loadList();
+  }).catch(function(e){$('#docNote').textContent='連線失敗：'+e.message})
+  .finally(function(){$('#docLogin').disabled=false});
+}
 $('#btnDoc').onclick=openDocDialog;
-$('#docOtherOk').onclick=function(){setDoctor($('#docOther').value)};
-$('#docOther').onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();setDoctor($('#docOther').value)}};
-$('#dlgDoc').addEventListener('cancel',function(e){if(!doctor())e.preventDefault()});
+$('#docLogin').onclick=doLogin;
+$('#docCancel').onclick=function(){$('#dlgDoc').close()};
+$('#docPin').onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();doLogin()}};
+$('#docName').onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();$('#docPin').focus()}};
+function needLogin(){auth={};LS.set('nhirx.doc',auth);renderDoc();validate();toast('請重新登入','warn');openDocDialog()}
 
 /* ---- tabs ---- */
 document.querySelectorAll('.tabs button').forEach(function(b){b.onclick=function(){
@@ -234,11 +250,11 @@ $('#q').onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();var f=$('#d
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
 
 /* ---- validate / submit ---- */
-function validate(){var ok=/^\d{5,10}$/.test($('#mrn').value.trim())&&state.drugs.length>0&&!!doctor();$('#btnSubmit').disabled=!ok;$('#btnSubmit').textContent=doctor()?'送出登錄':'請先選擇登錄醫師';return ok}
+function validate(){var ok=/^\d{5,10}$/.test($('#mrn').value.trim())&&state.drugs.length>0&&!!docToken();$('#btnSubmit').disabled=!ok;$('#btnSubmit').textContent=docToken()?'送出登錄':'請先登入醫師身分';return ok}
 $('#mrn').oninput=validate;
 
-function payload(){return{action:'submit',secret:secret(),mrn:$('#mrn').value.trim(),name:$('#pname').value.trim(),cancer:state.cancer||'',
-  drugs:state.drugs.join(' + '),type:state.type,memo:$('#memo').value.trim(),doctor:doctor(),client_ts:new Date().toISOString(),
+function payload(){return{action:'submit',secret:secret(),doc_token:docToken(),mrn:$('#mrn').value.trim(),name:$('#pname').value.trim(),cancer:state.cancer||'',
+  drugs:state.drugs.join(' + '),type:state.type,memo:$('#memo').value.trim(),client_ts:new Date().toISOString(),
   nonce:Date.now().toString(36)+Math.random().toString(36).slice(2,8)}}
 
 function post(body,attempt){
@@ -251,13 +267,14 @@ function post(body,attempt){
 var busy=false;
 function sendCase(p,onDone){
   return post(p).then(function(r){
+    if(r.status!=='ok'&&r.message==='login required'){needLogin();if(onDone)onDone(null);return}
     if(r.status!=='ok')throw new Error(r.message||'伺服器拒絕');
     toast('已登錄 #'+r.id+'　'+p.mrn+'　'+p.drugs+(r.dup?'（重複，沿用原編號）':''));
     remember(p);if(onDone)onDone(r);
   }).catch(function(e){queue(p);toast('送出失敗，已存待送：'+e.message,'err');if(onDone)onDone(null)});
 }
 $('#btnSubmit').onclick=function(){
-  if(!doctor()){openDocDialog();return}
+  if(!docToken()){openDocDialog();return}
   if(busy||!validate())return;
   if(!validUrl(gasUrl())){toast('尚未設定後端 URL（⚙），先存入待送','warn');queue(payload());resetForm();return}
   busy=true;$('#btnSubmit').disabled=true;$('#btnSubmit').textContent='送出中…';
@@ -272,7 +289,8 @@ function queue(p){var q=LS.get('nhirx.queue',[]);q.push(p);LS.set('nhirx.queue',
 function renderQueue(){var q=LS.get('nhirx.queue',[]);$('#qn').textContent=q.length;$('#btnQueue').classList.toggle('hid',!q.length)}
 $('#btnQueue').onclick=flush;
 function flush(){var q=LS.get('nhirx.queue',[]);if(!q.length)return;if(!validUrl(gasUrl())){toast('先在 ⚙ 設定後端 URL','warn');return}
-  var p=q[0];p.secret=secret();p.doctor=p.doctor||doctor();
+  if(!docToken()){toast('請先登入醫師身分再補送','warn');openDocDialog();return}
+  var p=q[0];p.secret=secret();p.doc_token=docToken();
   post(p).then(function(r){if(r.status!=='ok')throw new Error(r.message||'拒絕');q.shift();LS.set('nhirx.queue',q);remember(p);renderQueue();toast('補送成功 #'+r.id);if(q.length)flush()})
   .catch(function(e){toast('補送失敗：'+e.message,'err')})}
 window.addEventListener('online',function(){if(LS.get('nhirx.queue',[]).length)flush()});
@@ -290,10 +308,12 @@ function stClass(s){return s==='待送'?'st-wait':s==='已送審'?'st-sent':/核
 function loadList(){
   var tb=$('#tbl tbody');tb.innerHTML='';$('#listNote').textContent='';
   if(!validUrl(gasUrl())){$('#listNote').textContent='尚未設定後端 URL，僅顯示本機紀錄。';state.rows=LS.get('nhirx.today',[]).map(function(x){return{id:'',ts:x.ts,mrn:x.mrn,drugs:x.drugs,type:x.type,status:'本機',valid:''}});renderRows();return}
-  if(!doctor()){$('#listNote').textContent='請先選擇登錄醫師（右上 👤）。';return}
+  if(!docToken()){$('#listNote').textContent='請先登入醫師身分（右上 👤）。';return}
   $('#listNote').textContent='載入中…';
-  post({action:'list',secret:secret(),limit:300,doctor:doctor()}).then(function(r){if(r.status!=='ok')throw new Error(r.message||'拒絕');
-    state.rows=r.rows.filter(function(x){return String(x.doctor||'').trim()===doctor()});  /* client-side too: a 1.2 backend ignores the doctor param */
+  post({action:'list',secret:secret(),limit:300,doc_token:docToken()}).then(function(r){
+    if(r.status!=='ok'&&r.message==='login required'){needLogin();return}
+    if(r.status!=='ok')throw new Error(r.message||'拒絕');
+    state.rows=r.rows;   /* the backend scopes by token */
     var changed=state.rows.filter(function(x){return flagsFor(x).some(function(f){return f[0]==='flag-new'})}).length;
     $('#listBadge').textContent=changed;$('#listBadge').classList.toggle('hid',!changed);
     $('#listNote').textContent=doctor()+' 的案件 '+state.rows.length+' 筆'+(changed?'，'+changed+' 筆有更新':'');renderRows();
@@ -312,22 +332,31 @@ function renderRows(){
 function renew(id){
   var r=state.rows.filter(function(x){return Number(x.id)===id})[0];if(!r)return;
   if(!confirm('為 '+r.mrn+' 建立「'+r.drugs+'」續用申請？（續用自 #'+id+'）'))return;
-  var p={action:'submit',secret:secret(),mrn:r.mrn,name:r.name||'',cancer:r.cancer||'',drugs:r.drugs,type:'續用',memo:'續用自 #'+id+(r.valid?'（前次有效期至 '+r.valid+'）':''),doctor:doctor(),parent_id:id,client_ts:new Date().toISOString(),nonce:Date.now().toString(36)+Math.random().toString(36).slice(2,8)};
+  var p={action:'submit',secret:secret(),doc_token:docToken(),mrn:r.mrn,name:r.name||'',cancer:r.cancer||'',drugs:r.drugs,type:'續用',memo:'續用自 #'+id+(r.valid?'（前次有效期至 '+r.valid+'）':''),parent_id:id,client_ts:new Date().toISOString(),nonce:Date.now().toString(36)+Math.random().toString(36).slice(2,8)};
   sendCase(p,function(res){if(res)loadList()});
 }
 document.querySelectorAll('#lf .chip').forEach(function(c){c.onclick=function(){state.lf=c.dataset.f;document.querySelectorAll('#lf .chip').forEach(function(x){x.classList.toggle('on',x===c)});renderRows()}});
 $('#btnReload').onclick=loadList;
 
 /* ---- settings ---- */
-$('#btnSet').onclick=function(){$('#sUrl').value=cfg.url||DEFAULT_GAS_URL;$('#sSecret').value=cfg.secret||DEFAULT_SECRET;$('#sDoc').value=cfg.doc||'';$('#dlg').showModal()};
+$('#btnSet').onclick=function(){$('#sUrl').value=cfg.url||DEFAULT_GAS_URL;$('#sSecret').value=cfg.secret||DEFAULT_SECRET;$('#sTestNote').textContent='';$('#dlg').showModal()};
 $('#sCancel').onclick=function(){$('#dlg').close()};
-$('#sSave').onclick=function(){cfg={url:$('#sUrl').value.trim(),secret:$('#sSecret').value.trim(),doc:$('#sDoc').value.trim()};LS.set('nhirx.cfg',cfg);$('#dlg').close();toast('設定已儲存');renderQueue();renderDoc();validate()};
+$('#sSave').onclick=function(){cfg={url:$('#sUrl').value.trim(),secret:$('#sSecret').value.trim()};LS.set('nhirx.cfg',cfg);$('#dlg').close();toast('設定已儲存');renderQueue();renderDoc();validate()};
+$('#sTest').onclick=function(){
+  var u=$('#sUrl').value.trim();
+  if(!validUrl(u)){$('#sTestNote').textContent='網址格式不正確（需 script.google.com/.../exec）';return}
+  $('#sTestNote').textContent='測試中…';
+  fetch(u,{method:'GET'}).then(function(r){return r.text()}).then(function(t){var j;try{j=JSON.parse(t)}catch(e){throw new Error('回應非 JSON，請確認部署存取權為「所有人」')}
+    $('#sTestNote').textContent='連線成功　服務 '+(j.service||'?')+'　版本 '+(j.contract||'?');
+  }).catch(function(e){$('#sTestNote').textContent='連線失敗：'+e.message});
+};
+$('#sReset').onclick=function(){if(!confirm('恢復內建的後端網址與密碼？（醫師登入狀態會保留）'))return;cfg={};LS.set('nhirx.cfg',cfg);$('#sUrl').value=DEFAULT_GAS_URL;$('#sSecret').value=DEFAULT_SECRET;$('#sTestNote').textContent='已恢復預設';toast('已恢復預設設定')};
 
 /* ---- toast ---- */
 function toast(m,k){var t=document.createElement('div');t.className='toast'+(k?' '+k:'');t.textContent=m;document.body.appendChild(t);setTimeout(function(){t.remove()},k==='err'?5000:3200)}
 
 renderRecent();renderList();renderQueue();renderDoc();validate();
-loadRoster().then(function(){if(!doctor())openDocDialog()});
+if(!docToken())openDocDialog();
 </script>
 </body>
 </html>
