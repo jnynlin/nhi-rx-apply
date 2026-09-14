@@ -108,11 +108,12 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
       <input type="search" id="q" placeholder="搜病歷號 / 姓名 / 藥物" style="flex:2">
       <button class="btn2" id="btnReload" style="flex:0 0 auto">重新整理</button>
     </div>
-    <div class="note" id="status" style="margin-top:.4rem">每 60 秒自動更新；新案黃底。即將到期＝有效期 30 天內；逾期＝已送審超過 14 天未回覆。</div>
+    <div class="row" style="margin-top:.5rem"><span class="note" style="flex:0 0 auto">醫師：</span><div class="chips" id="docFilters"><span class="chip on" data-d="">全部醫師</span></div></div>
+    <div class="note" id="status" style="margin-top:.4rem">每 60 秒自動更新；新案黃底。即將到期＝有效期 30 天內；逾期＝已送審超過 14 天未回覆。KPI 隨醫師篩選變動，標題徽章為全部待送。</div>
   </div>
 
   <div class="card" style="overflow-x:auto">
-    <table id="tbl"><thead><tr><th>#</th><th>登錄</th><th>病歷號</th><th class="hide-sm">姓名</th><th>藥物</th><th>類型</th><th class="hide-sm">癌別</th><th>狀態</th><th class="hide-sm">送審日</th><th class="hide-sm">有效期至</th><th></th></tr></thead><tbody></tbody></table>
+    <table id="tbl"><thead><tr><th>#</th><th>登錄</th><th>病歷號</th><th class="hide-sm">姓名</th><th>藥物</th><th>類型</th><th>醫師</th><th class="hide-sm">癌別</th><th>狀態</th><th class="hide-sm">送審日</th><th class="hide-sm">有效期至</th><th></th></tr></thead><tbody></tbody></table>
   </div>
 
   <div class="card hid" id="edit">
@@ -127,7 +128,7 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
     </div>
     <div class="req" id="eReq"></div>
     <label class="l">行政備註</label><textarea id="eMemo" rows="2"></textarea>
-    <div class="row" style="margin-top:.6rem"><span class="note" id="eMeta"></span><button class="btn" id="eSave" style="flex:0 0 auto">儲存</button></div>
+    <div class="row" style="margin-top:.6rem"><span class="note" id="eMeta"></span><button class="btn2" id="eCopy" style="flex:0 0 auto" title="複製通知文字給醫師（LINE 等）">複製通知文字</button><button class="btn2" id="eTest" style="flex:0 0 auto" title="標記為測試案並結案">測試結案</button><button class="btn" id="eSave" style="flex:0 0 auto">儲存</button></div>
     <hr style="border:0;border-top:1px solid var(--border);margin:.8rem 0">
     <b style="font-size:.95rem">歷程</b>
     <ul class="tl" id="eHist"><li class="note">載入中…</li></ul>
@@ -153,7 +154,16 @@ function secret(){return cfg.secret||DEFAULT_SECRET}
 function validUrl(u){return /^https:\/\/script\.google\.com\//.test(u)||/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//.test(u)}
 var $=function(s){return document.querySelector(s)};
 var sess = LS.get('nhirx.admin',null);
-var rows=[], filter='待送', selected=null, timer=null, lastSeen=LS.get('nhirx.admin.lastSeen',0);
+var rows=[], filter='待送', docFilter='', roster=[], selected=null, timer=null, lastSeen=LS.get('nhirx.admin.lastSeen',0);
+function loadRoster(){post({action:'config',secret:secret()}).then(function(r){if(r.status==='ok'&&r.doctors)roster=r.doctors;renderDocFilters()}).catch(function(){})}
+function renderDocFilters(){
+  var names=[];roster.forEach(function(d){if(names.indexOf(d.name)<0)names.push(d.name)});
+  rows.forEach(function(x){var n=String(x.doctor||'').trim();if(n&&names.indexOf(n)<0)names.push(n)});
+  var w=$('#docFilters');w.innerHTML='';
+  var all=document.createElement('span');all.className='chip'+(docFilter===''?' on':'');all.textContent='全部醫師';all.onclick=function(){docFilter='';render()};w.appendChild(all);
+  names.forEach(function(n){var s=document.createElement('span');s.className='chip'+(docFilter===n?' on':'');s.textContent=n;s.onclick=function(){docFilter=(docFilter===n)?'':n;render()};w.appendChild(s)});
+}
+function byDoc(x){return !docFilter||String(x.doctor||'').trim()===docFilter}
 
 function post(body,attempt){attempt=attempt||0;return fetch(gasUrl(),{method:'POST',body:JSON.stringify(body),headers:{'Content-Type':'text/plain;charset=utf-8'}}).then(function(r){return r.text()}).then(function(t){var j;try{j=JSON.parse(t)}catch(e){throw new Error('回應非 JSON')}
   if(j&&j.message==='busy, retry'&&attempt<3){return new Promise(function(res){setTimeout(res,1500*(attempt+1))}).then(function(){return post(body,attempt+1)})}
@@ -168,7 +178,7 @@ function overdue(r){if(r.status!=='已送審'||!r.sent)return null;var m=daysFro
 function flags(r){var f=[];var e=expiring(r);if(e!==null)f.push('<span class="flag flag-exp">'+(e<0?'已到期':'到期 '+e+'天')+'</span>');var o=overdue(r);if(o!==null)f.push('<span class="flag flag-over">逾期 '+o+'天</span>');return f.join('')}
 
 /* ---- login ---- */
-function showApp(){$('#login').classList.add('hid');$('#app').classList.remove('hid');$('#btnLogout').classList.remove('hid');$('#who').textContent=sess.name;load();if(timer)clearInterval(timer);timer=setInterval(load,60000)}
+function showApp(){$('#login').classList.add('hid');$('#app').classList.remove('hid');$('#btnLogout').classList.remove('hid');$('#who').textContent=sess.name;loadRoster();load();if(timer)clearInterval(timer);timer=setInterval(load,60000)}
 $('#btnLogin').onclick=function(){
   var name=$('#lname').value.trim(),code=$('#lcode').value.trim();
   if(!name||!code){toast('請輸入姓名與密碼','warn');return}
@@ -192,11 +202,10 @@ function load(){
     rows=r.rows;
     var maxId=rows.length?Math.max.apply(null,rows.map(function(x){return Number(x.id)||0})):0;
     var fresh=rows.filter(function(x){return Number(x.id)>lastSeen});
-    var cnt={wait:0,sent:0,q:0,exp:0,over:0};
-    rows.forEach(function(x){if(x.status==='待送')cnt.wait++;if(x.status==='已送審')cnt.sent++;if(x.status==='補件')cnt.q++;if(expiring(x)!==null)cnt.exp++;if(overdue(x)!==null)cnt.over++});
-    $('#k-wait').textContent=cnt.wait;$('#k-sent').textContent=cnt.sent;$('#k-q').textContent=cnt.q;$('#k-exp').textContent=cnt.exp;$('#k-over').textContent=cnt.over;
-    $('#badge').textContent=cnt.wait;$('#badge').classList.toggle('hid',!cnt.wait);
-    document.title=(cnt.wait?'('+cnt.wait+') ':'')+'健保申請 行政清單';
+    var allWait=rows.filter(function(x){return x.status==='待送'}).length;
+    $('#badge').textContent=allWait;$('#badge').classList.toggle('hid',!allWait);
+    document.title=(allWait?'('+allWait+') ':'')+'健保申請 行政清單';
+    renderDocFilters();
     $('#status').textContent='共 '+rows.length+' 筆'+(fresh.length?'，新案 '+fresh.length+' 筆':'')+'　更新 '+new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});
     if(fresh.length&&maxId>prevMax&&prevMax>0)notifyNew(fresh);
     render();
@@ -210,15 +219,20 @@ function notifyNew(list){
 function urgency(r){return overdue(r)!==null?0:expiring(r)!==null?1:r.status==='待送'?2:r.status==='補件'?3:r.status==='已送審'?4:5}
 function render(){
   var q=$('#q').value.trim().toLowerCase();var tb=$('#tbl tbody');tb.innerHTML='';
-  var list=rows.filter(function(x){
+  var scope=rows.filter(byDoc);
+  var cnt={wait:0,sent:0,q:0,exp:0,over:0};
+  scope.forEach(function(x){if(x.status==='待送')cnt.wait++;if(x.status==='已送審')cnt.sent++;if(x.status==='補件')cnt.q++;if(expiring(x)!==null)cnt.exp++;if(overdue(x)!==null)cnt.over++});
+  $('#k-wait').textContent=cnt.wait;$('#k-sent').textContent=cnt.sent;$('#k-q').textContent=cnt.q;$('#k-exp').textContent=cnt.exp;$('#k-over').textContent=cnt.over;
+  document.querySelectorAll('#docFilters .chip').forEach(function(c){c.classList.toggle('on',(c.textContent==='全部醫師'?'':c.textContent)===docFilter)});
+  var list=scope.filter(function(x){
     var okF=filter==='expiring'?expiring(x)!==null:filter==='overdue'?overdue(x)!==null:(!filter||x.status===filter);
-    return okF&&(!q||String(x.mrn).indexOf(q)>=0||String(x.drugs).toLowerCase().indexOf(q)>=0||String(x.name||'').indexOf(q)>=0)});
+    return okF&&(!q||String(x.mrn).indexOf(q)>=0||String(x.drugs).toLowerCase().indexOf(q)>=0||String(x.name||'').indexOf(q)>=0||String(x.doctor||'').indexOf(q)>=0)});
   list.sort(function(a,b){var u=urgency(a)-urgency(b);if(u)return u;return (filter==='待送'||filter==='補件')?Number(a.id)-Number(b.id):Number(b.id)-Number(a.id)});
   list.forEach(function(x){var tr=document.createElement('tr');tr.className='r'+(Number(x.id)>lastSeen?' new':'')+(selected&&selected.id==x.id?' sel':'');
     var act=x.status==='待送'?'<button class="btnR" data-quick="'+esc(x.id)+'">今日已送審</button>':'';
-    tr.innerHTML='<td>'+esc(x.id)+'</td><td>'+esc(String(x.ts||'').slice(5,10))+'</td><td><b>'+esc(x.mrn)+'</b></td><td class="hide-sm">'+esc(x.name)+'</td><td>'+esc(x.drugs)+(x.parent_id?'<br><small class="note">續用自 #'+esc(x.parent_id)+'</small>':'')+'</td><td>'+esc(x.type)+'</td><td class="hide-sm">'+esc(x.cancer)+'</td><td><span class="st '+stClass(x.status)+'">'+esc(x.status)+'</span>'+flags(x)+'</td><td class="hide-sm">'+esc(x.sent)+'</td><td class="hide-sm">'+esc(x.valid)+'</td><td>'+act+'</td>';
+    tr.innerHTML='<td>'+esc(x.id)+'</td><td>'+esc(String(x.ts||'').slice(5,10))+'</td><td><b>'+esc(x.mrn)+'</b></td><td class="hide-sm">'+esc(x.name)+'</td><td>'+esc(x.drugs)+(x.parent_id?'<br><small class="note">續用自 #'+esc(x.parent_id)+'</small>':'')+'</td><td>'+esc(x.type)+'</td><td>'+esc(x.doctor||'—')+'</td><td class="hide-sm">'+esc(x.cancer)+'</td><td><span class="st '+stClass(x.status)+'">'+esc(x.status)+'</span>'+flags(x)+'</td><td class="hide-sm">'+esc(x.sent)+'</td><td class="hide-sm">'+esc(x.valid)+'</td><td>'+act+'</td>';
     tr.onclick=function(){openEdit(x)};tb.appendChild(tr)});
-  if(!tb.children.length)tb.innerHTML='<tr><td colspan="11" class="note">沒有符合的案件</td></tr>';
+  if(!tb.children.length)tb.innerHTML='<tr><td colspan="12" class="note">沒有符合的案件</td></tr>';
   tb.querySelectorAll('[data-quick]').forEach(function(b){b.onclick=function(e){e.stopPropagation();quickSent(Number(b.dataset.quick),b)}});
   document.querySelectorAll('#filters .chip').forEach(function(c){c.classList.toggle('on',c.dataset.f===filter)});
   document.querySelectorAll('#kpis .kpi').forEach(function(c){c.classList.toggle('on',c.dataset.f===filter)});
@@ -242,7 +256,7 @@ $('#eStatus').onchange=reqHint;
 function openEdit(x){
   selected=x;$('#edit').classList.remove('hid');
   $('#eTitle').textContent='#'+x.id+'　病歷號 '+x.mrn+(x.name?'　'+x.name:'')+'　'+x.drugs+'（'+x.type+'）';
-  var info=['登錄 '+x.ts,'癌別 '+(x.cancer||'—'),'登錄醫師 '+(x.doctor||'—'),'醫師備註 '+(x.memo||'—')];
+  var info=['登錄 '+x.ts,'登錄醫師 '+(x.doctor||'—'),'癌別 '+(x.cancer||'—'),'醫師備註 '+(x.memo||'—')];
   if(x.parent_id)info.push('續用自 #'+x.parent_id);
   $('#eInfo').innerHTML=info.map(function(s){return '<div class="kv">'+esc(s)+'</div>'}).join('');
   if(x.parent_id){var pl=document.createElement('button');pl.className='btn2';pl.textContent='開啟 #'+x.parent_id;pl.onclick=function(){var p=rows.filter(function(r){return String(r.id)===String(x.parent_id)})[0];if(p)openEdit(p)};$('#eInfo').lastChild.appendChild(document.createTextNode(' '));$('#eInfo').lastChild.appendChild(pl)}
@@ -258,11 +272,26 @@ function openEdit(x){
   }).catch(function(){$('#eHist').innerHTML='<li class="note">此後端版本無歷程功能</li>'});
 }
 $('#eClose').onclick=function(){selected=null;$('#edit').classList.add('hid');render()};
+function saveCase(p,label){
+  $('#eSave').disabled=true;$('#eTest').disabled=true;
+  return post(p).then(function(r){if(r.status!=='ok')throw new Error(r.missing?('缺少：'+r.missing.join('、')):(r.message||'儲存失敗'));
+    toast((label||'已儲存')+' #'+p.id+'　'+p['狀態']+(r.mailed?'　已 email 通知醫師':''));selected=null;$('#edit').classList.add('hid');load()})
+  .catch(function(e){toast(e.message,'err')}).finally(function(){$('#eSave').disabled=false;$('#eTest').disabled=false});
+}
 $('#eSave').onclick=function(){
-  if(!selected)return;$('#eSave').disabled=true;
-  var p={action:'update',secret:secret(),admin_code:sess.code,admin:sess.name,id:selected.id,'狀態':$('#eStatus').value,'送審日':$('#eSent').value,'結果':$('#eResult').value.trim(),'有效期至':$('#eValid').value,'行政備註':$('#eMemo').value.trim()};
-  post(p).then(function(r){if(r.status!=='ok')throw new Error(r.missing?('缺少：'+r.missing.join('、')):(r.message||'儲存失敗'));toast('已儲存 #'+selected.id+'　'+p['狀態']);selected=null;$('#edit').classList.add('hid');load()})
-  .catch(function(e){toast(e.message,'err')}).finally(function(){$('#eSave').disabled=false});
+  if(!selected)return;
+  saveCase({action:'update',secret:secret(),admin_code:sess.code,admin:sess.name,id:selected.id,'狀態':$('#eStatus').value,'送審日':$('#eSent').value,'結果':$('#eResult').value.trim(),'有效期至':$('#eValid').value,'行政備註':$('#eMemo').value.trim()});
+};
+$('#eTest').onclick=function(){
+  if(!selected)return;if(!confirm('將 #'+selected.id+'（病歷號 '+selected.mrn+'）標記為測試案並結案？'))return;
+  var memo=($('#eMemo').value.trim()?$('#eMemo').value.trim()+'；':'')+'測試';
+  saveCase({action:'update',secret:secret(),admin_code:sess.code,admin:sess.name,id:selected.id,'狀態':'結案','行政備註':memo},'測試結案');
+};
+$('#eCopy').onclick=function(){
+  if(!selected)return;var x=selected;
+  var t='【健保事前審查】#'+x.id+' 病歷號 '+x.mrn+(x.name?' '+x.name:'')+'\n藥物：'+x.drugs+'（'+x.type+'）\n狀態：'+$('#eStatus').value+($('#eSent').value?'\n送審日：'+$('#eSent').value:'')+($('#eResult').value.trim()?'\n結果：'+$('#eResult').value.trim():'')+($('#eValid').value?'\n有效期至：'+$('#eValid').value:'')+($('#eMemo').value.trim()?'\n備註：'+$('#eMemo').value.trim():'')+'\n— '+sess.name;
+  var done=function(){toast('已複製，可貼到 LINE 給 '+(x.doctor||'醫師'))};
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(done).catch(function(){prompt('請手動複製：',t)})}else{prompt('請手動複製：',t)}
 };
 
 /* ---- notifications / settings ---- */
