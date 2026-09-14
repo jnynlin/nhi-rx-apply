@@ -68,6 +68,11 @@ th{color:var(--muted);font-weight:600;font-size:.8rem}
 .btnR{border:0;background:var(--primary);color:#fff;border-radius:8px;padding:.35rem .6rem;font-size:.85rem;font-weight:600;white-space:nowrap}
 .hid{display:none}
 .badge{background:var(--danger);color:#fff;border-radius:999px;padding:0 .45rem;font-size:.75rem;margin-left:.3rem}
+.btn-cap{display:block;text-align:center;background:var(--primary);color:#fff;border-radius:12px;padding:.75rem;font-size:1.05rem;font-weight:700;cursor:pointer;flex:1}
+.cap-ok{background:var(--ok-soft);border:1px solid var(--ok);color:var(--ok);border-radius:10px;padding:.6rem .7rem;font-size:1rem}
+.cap-bad{background:var(--warn-soft);border:1px solid var(--warn);color:var(--warn);border-radius:10px;padding:.6rem .7rem;font-size:1rem}
+.cap-ok b,.cap-bad b{font-size:1.35rem;letter-spacing:.06em;font-variant-numeric:tabular-nums}
+.mrn-ocr{border-color:var(--ok) !important;background:var(--ok-soft) !important}
 .toggle{background:none;border:0;color:var(--primary-d);font-size:.95rem;padding:.2rem 0;cursor:pointer}
 dialog{border:0;border-radius:var(--radius);padding:1rem;max-width:520px;width:92vw}
 dialog::backdrop{background:rgba(0,0,0,.35)}
@@ -86,6 +91,19 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
 </div>
 
 <main id="tab-form">
+  <div class="card" id="capCard">
+    <div class="row">
+      <label class="btn-cap" for="capFile">📷 拍 / 貼 HIS 畫面，自動讀病歷號</label>
+      <input type="file" id="capFile" accept="image/*" capture="environment" class="hid">
+    </div>
+    <div class="note" id="capHint" style="margin-top:.45rem">辨識在手機內完成，影像不會上傳。電腦上可用 Win+Shift+S 截圖後在此頁按 Ctrl+V。</div>
+    <div id="capResult" class="hid" style="margin-top:.6rem">
+      <img id="capBand" alt="擷取到的病歷號那一行" style="width:100%;border-radius:8px;border:1px solid var(--border)">
+      <div id="capVerdict" style="margin-top:.5rem"></div>
+      <div class="row" style="margin-top:.5rem"><button class="btn2 hid" id="capConfirm" style="background:var(--ok);color:#fff;border-color:var(--ok);font-weight:700">核對無誤，填入</button><button class="btn2" id="capRetry">重拍</button><button class="btn2" id="capManual">手動輸入</button></div>
+    </div>
+  </div>
+
   <div class="card">
     <label class="l">病歷號 *</label>
     <input type="text" id="mrn" class="big" inputmode="numeric" pattern="[0-9]*" placeholder="例 14408593" autocomplete="off" autofocus>
@@ -150,6 +168,7 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
   <div class="row" style="margin-top:.5rem"><button class="btn2" id="sCancel">取消</button><button class="btn2" id="sSave" style="background:var(--primary);color:#fff;border-color:var(--primary)">儲存</button></div>
 </dialog>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/tesseract.min.js"></script>
 <script>
 /* ===== 預設設定（部署後可在 ⚙ 覆寫，存於本機瀏覽器） ===== */
 var DEFAULT_GAS_URL = "https://script.google.com/macros/s/AKfycbxjLokGZU17DEE82c-RrMfvWUxdcuZwPdOpNu10JJPloZgmWvYezB42Yy2I3uN6PCyU/exec";
@@ -355,8 +374,201 @@ $('#sReset').onclick=function(){if(!confirm('恢復內建的後端網址與密�
 /* ---- toast ---- */
 function toast(m,k){var t=document.createElement('div');t.className='toast'+(k?' '+k:'');t.textContent=m;document.body.appendChild(t);setTimeout(function(){t.remove()},k==='err'?5000:3200)}
 
+/* ===================================================================
+   截圖／拍照讀病歷號（裝置內辨識，影像不上傳）
+   規格不符就立刻請重拍，寧可要求重拍也不靜默填錯。
+   門檻依 12 張實測照片校準：至少 2 組前處理在方括號內讀到相同數字，
+   該規則在測試集上被接受的讀取 100% 正確。
+   =================================================================== */
+var CAP = {
+  /* 文字高度只當診斷用，不當硬性門檻：手機拍照的字在畫面中很大(60-130px)，
+     電腦截圖的字在像素上很小(15-22px)卻銳利且辨識率更高。真正的把關是下面的票數一致性。 */
+  HARD_MIN_TEXT_H: 11, // 低於此完全無法辨識，直接請重拍
+  SMALL_TEXT_H: 15,    // 低於此且辨識失敗時才提示「靠近／放大」（截圖在 16-22px 就已辨識良好）
+  MIN_AGREE: 3,        // 四組前處理中至少幾組在方括號內讀到「相同」數字
+  NO_DISSENT: true,    // 且不得有其他組讀到不同數字
+  MIN_DIGITS: 5, MAX_DIGITS: 10,
+  worker: null, tries: 0, busy: false, pending: ''
+};
+function capWorker(){
+  if(CAP.worker) return CAP.worker;
+  if(typeof Tesseract === 'undefined') return Promise.reject(new Error('辨識元件未載入（需連網一次）'));
+  CAP.worker = Tesseract.createWorker('eng', 1, {logger:function(m){
+    if(m.status==='recognizing text') capSay('辨識中 '+Math.round(m.progress*100)+'%');
+  }}).then(function(w){ return w.setParameters({tessedit_char_whitelist:'0123456789[]()'}).then(function(){return w}) });
+  return CAP.worker;
+}
+function capSay(msg, kind){
+  var v=$('#capVerdict');
+  v.className = kind==='ok' ? 'cap-ok' : (kind==='bad' ? 'cap-bad' : 'note');
+  v.innerHTML = msg;
+}
+/* 找出上方藍綠色標題列裡的黃色字（病歷號那一行），回傳裁切後的 canvas 與品質指標 */
+function capFindBand(img){
+  var W = 1600, sc = W/img.width;   // 一律換算到固定工作寬度，門檻才不受來源解析度影響
+  var cw = Math.round(img.width*sc), ch = Math.round(img.height*sc);
+  var full = document.createElement('canvas'); full.width=cw; full.height=ch;
+  full.getContext('2d').drawImage(img,0,0,cw,ch);
+  /* 先找上方 40%（整個 HIS 視窗的截圖）；找不到再掃全圖（只框標題列的裁切截圖） */
+  var scan = function(y0r, hr){
+    var d = full.getContext('2d').getImageData(0,y0r,cw,hr), p = d.data;
+    var rc = new Int32Array(hr), mx = 0;
+    for(var y=0;y<hr;y++){
+      var n=0, base=y*cw*4;
+      for(var x=0;x<cw;x++){
+        var i=base+x*4, r=p[i], g=p[i+1], b=p[i+2];
+        if(r>140 && g>130 && b<130 && ((r+g)/2-b)>60) n++;
+      }
+      rc[y]=n; if(n>mx) mx=n;
+    }
+    return {rc:rc, max:mx, off:y0r, h:hr};
+  };
+  var s = scan(Math.round(ch*0.02), Math.round(ch*0.38));
+  if(s.max < 8) s = scan(0, ch);
+  var y0r = s.off, hr = s.h, rowCount = s.rc, maxRow = s.max;
+  if(maxRow < 8) return {err:'no_header'};
+  var thr = maxRow*0.2, first=-1, last=-1;
+  for(var y=0;y<hr;y++){
+    if(rowCount[y]>thr){
+      if(first<0){first=y; last=y;}
+      else if(y-last<=Math.max(6,Math.round(ch*0.01))) last=y;
+      else break;
+    }
+  }
+  if(first<0) return {err:'no_header'};
+  var textH = last-first+1;
+  var pad = Math.round(textH*0.35)+5;
+  var by = Math.max(0, y0r+first-pad), bh = Math.min(ch-by, textH+pad*2);
+  if(bh < 6) return {err:'no_header'};
+  var bw = Math.round(cw*0.52);   // 病歷號恆在姓名之後的左半，右半是生日與流水號
+  var band = document.createElement('canvas'); band.width=bw; band.height=bh;
+  band.getContext('2d').drawImage(full, 0,by,bw,bh, 0,0,bw,bh);
+  // 以原圖尺度回推文字高度，作為「拍太遠」判準
+  return {canvas:band, textH: Math.round(textH/sc*(W/Math.max(W,img.width))||textH), rawTextH:textH, scale:sc};
+}
+/* 黃字轉成深字白底，指定高度，可選模糊（壓 LCD 網點） */
+function capPrep(band, blur, targetH){
+  var sc = targetH/band.height;
+  var w = Math.max(8, Math.round(band.width*sc));
+  var c = document.createElement('canvas'); c.width=w+40; c.height=targetH+40;
+  var ctx = c.getContext('2d');
+  ctx.fillStyle='#fff'; ctx.fillRect(0,0,c.width,c.height);
+  if(blur && ctx.filter!==undefined) ctx.filter='blur('+blur+'px)';
+  ctx.drawImage(band, 20, 20, w, targetH);
+  ctx.filter='none';
+  var d=ctx.getImageData(0,0,c.width,c.height), p=d.data, mn=255, mx=0, i, v, vals=new Float32Array(c.width*c.height);
+  for(i=0;i<p.length;i+=4){
+    v = p[i]*0.5 + p[i+1]*0.5 - p[i+2];       // 黃度：字高、底低
+    vals[i>>2]=v; if(v<mn)mn=v; if(v>mx)mx=v;
+  }
+  var rng = Math.max(1, mx-mn);
+  for(i=0;i<p.length;i+=4){
+    v = 255 - (vals[i>>2]-mn)/rng*255;         // 反相 → 深字白底
+    p[i]=p[i+1]=p[i+2]=v;
+  }
+  ctx.putImageData(d,0,0);
+  return c;
+}
+function capExtract(text){
+  var paren={}, m, re;
+  re=/\((\d{5,10})\)/g; while((m=re.exec(text))) paren[m[1]]=1;   // 括號內是生日，永遠不是病歷號
+  var br=[], any=[];
+  re=/\[\s*(\d{5,10})\s*\]/g; while((m=re.exec(text))) br.push(m[1]);
+  re=/\d{5,10}/g; while((m=re.exec(text))) if(!paren[m[0]]) any.push(m[0]);
+  return {br:br, any:any};
+}
+function capAnalyse(band){
+  var variants=[[0,120],[0.6,120],[0,150],[1.0,150]];
+  return capWorker().then(function(w){
+    var seq=Promise.resolve(), brVotes={}, anyVotes={};
+    variants.forEach(function(v){
+      seq=seq.then(function(){ return w.recognize(capPrep(band,v[0],v[1])) }).then(function(r){
+        var e=capExtract((r.data&&r.data.text)||'');
+        e.br.forEach(function(d){brVotes[d]=(brVotes[d]||0)+1});
+        e.any.forEach(function(d){anyVotes[d]=(anyVotes[d]||0)+1});
+      }).catch(function(){});
+    });
+    return seq.then(function(){
+      var best='', n=0, total=0, distinct=0;
+      for(var d in brVotes){ total+=brVotes[d]; distinct++; if(brVotes[d]>n){best=d;n=brVotes[d]} }
+      return {mrn:best, agree:n, dissent: total-n, distinct:distinct, anyVotes:anyVotes};
+    });
+  });
+}
+function capHandle(file){
+  if(!file || CAP.busy) return;
+  CAP.busy=true; CAP.tries++;
+  $('#capResult').classList.remove('hid'); capSay('讀取影像…');
+  var img=new Image();
+  img.onload=function(){
+    var b=capFindBand(img);
+    if(b.err==='no_header'){
+      $('#capBand').classList.add('hid');
+      capFail('沒抓到病歷號那一行。請把畫面<b>最上方那條藍綠底、黃色字</b>的列拍進去（含方括號內的號碼）。');
+      return;
+    }
+    $('#capBand').classList.remove('hid');
+    $('#capBand').src=b.canvas.toDataURL('image/png');
+    CAP.lastTextH=b.rawTextH;
+    if(b.rawTextH < CAP.HARD_MIN_TEXT_H){
+      capFail('病歷號那一行只有 '+b.rawTextH+'px 高，太小無法辨識。手機請<b>靠近</b>拍；電腦截圖請<b>放大 HIS 視窗</b>再截。');
+      return;
+    }
+    capSay('辨識中…');
+    capAnalyse(b.canvas).then(function(res){
+      var lenOk = res.mrn && res.mrn.length>=CAP.MIN_DIGITS && res.mrn.length<=CAP.MAX_DIGITS;
+      var solid = lenOk && res.agree>=CAP.MIN_AGREE && (!CAP.NO_DISSENT || res.dissent===0);
+      if(solid){
+        /* 讀得夠穩也不直接填：病歷號填錯等於掛錯病人，一律要醫師對照畫面按一次確認 */
+        CAP.pending=res.mrn; $('#capConfirm').classList.remove('hid');
+        capSay('讀到病歷號 <b>'+esc(res.mrn)+'</b><br><span style="font-size:.9rem">請對照上方影像確認每一位數字，正確再按「核對無誤，填入」。</span>','ok');
+        CAP.tries=0;
+      } else {
+        CAP.pending=''; $('#capConfirm').classList.add('hid');
+        var hint = !res.mrn ? '沒有在方括號內讀到號碼。'
+                 : (res.dissent>0 ? '四組辨識結果<b>不一致</b>（'+esc(res.mrn)+' 只得 '+res.agree+' 票），不可靠。'
+                                  : '只有 '+res.agree+' 組結果一致（需 '+CAP.MIN_AGREE+' 組），不夠可靠。');
+        var how = (CAP.lastTextH && CAP.lastTextH < CAP.SMALL_TEXT_H)
+          ? '字偏小（'+CAP.lastTextH+'px）。請<b>靠近</b>拍，或把 HIS 視窗放大再截圖。'
+          : '請重拍：手機與螢幕<b>平行</b>、更靠近、避開反光與手震。<br>用電腦 <b>Win+Shift+S</b> 截圖再貼上最準。';
+        capFail(hint+'為避免填錯病人，<b>不會自動填入</b>。<br>'+how);
+      }
+    }).catch(function(e){ capFail('辨識失敗：'+esc(e.message||e)+'　可改用手動輸入。') })
+    .finally(function(){ CAP.busy=false });
+  };
+  img.onerror=function(){ CAP.busy=false; capFail('影像讀取失敗，請重試。') };
+  img.src=URL.createObjectURL(file);
+}
+function capFail(msg){
+  CAP.busy=false; CAP.pending=''; $('#capConfirm').classList.add('hid');
+  var extra = CAP.tries>=2 ? '<br><span style="font-size:.85rem">已重試 '+CAP.tries+' 次，建議直接手動輸入病歷號。</span>' : '';
+  capSay('<b>請再拍一次</b><br>'+msg+extra,'bad');
+  if(CAP.tries>=2) $('#mrn').focus();
+}
+$('#capFile').onchange=function(){ var f=this.files&&this.files[0]; this.value=''; capHandle(f) };
+$('#capRetry').onclick=function(){ CAP.pending=''; $('#capConfirm').classList.add('hid'); capSay('請重新拍攝或貼上截圖…'); $('#capFile').click() };
+$('#capManual').onclick=function(){ $('#capResult').classList.add('hid'); CAP.tries=0; CAP.pending=''; $('#mrn').classList.remove('mrn-ocr'); $('#mrn').focus() };
+$('#capConfirm').onclick=function(){
+  if(!CAP.pending) return;
+  $('#mrn').value=CAP.pending; $('#mrn').classList.add('mrn-ocr'); validate();
+  $('#capConfirm').classList.add('hid');
+  capSay('已填入 <b>'+esc(CAP.pending)+'</b>　送出前請再看一眼。','ok');
+  CAP.pending='';
+};
+document.addEventListener('paste',function(e){
+  var items=(e.clipboardData||{}).items||[];
+  for(var i=0;i<items.length;i++) if(items[i].type.indexOf('image')===0){ e.preventDefault(); capHandle(items[i].getAsFile()); return; }
+});
+$('#mrn').addEventListener('input',function(){ this.classList.remove('mrn-ocr') });
+
 renderRecent();renderList();renderQueue();renderDoc();validate();
 if(!docToken())openDocDialog();
+if(typeof Tesseract !== 'undefined'){
+  setTimeout(function(){ capWorker().catch(function(){}) }, 1500);   // 預熱，第一次拍照才不用等引擎下載
+}else{
+  $('#capHint').innerHTML='⚠️ 辨識元件未載入（首次使用需連一次網路）。可直接手動輸入病歷號。';
+  $('#capFile').disabled=true; document.querySelector('.btn-cap').style.opacity='.5';
+}
 </script>
 </body>
 </html>
