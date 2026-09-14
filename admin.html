@@ -19,7 +19,7 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-appl
 header{background:var(--primary);color:#eef2ff;padding:.7rem 1rem;display:flex;align-items:center;gap:.6rem;position:sticky;top:0;z-index:5}
 header h1{font-size:1.05rem;margin:0;font-weight:600;flex:1}
 header button{background:rgba(255,255,255,.15);border:0;color:#eef2ff;border-radius:8px;padding:.35rem .6rem;font-size:.9rem}
-main{max-width:980px;margin:0 auto;padding:.9rem}
+main{max-width:1040px;margin:0 auto;padding:.9rem}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:.9rem;margin-bottom:.9rem}
 label.l{display:block;font-size:.9rem;color:var(--muted);margin:.2rem 0 .3rem}
 input[type=text],input[type=password],input[type=date],input[type=search],select,textarea{width:100%;font-size:1rem;padding:.55rem .7rem;border:1px solid var(--border);border-radius:10px;background:var(--surface2);color:var(--text)}
@@ -27,8 +27,15 @@ input:focus,select:focus,textarea:focus{outline:2px solid rgba(var(--primary-rgb
 .btn{border:0;border-radius:10px;padding:.6rem 1rem;font-size:1rem;background:var(--primary);color:#fff;font-weight:600}
 .btn:disabled{background:var(--faint)}
 .btn2{border:1px solid var(--border);background:var(--surface);color:var(--primary-d);border-radius:10px;padding:.5rem .8rem;font-size:.95rem}
+.btnR{border:0;background:var(--primary);color:#fff;border-radius:8px;padding:.3rem .6rem;font-size:.82rem;font-weight:600;white-space:nowrap}
 .row{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap}
 .row>*{flex:1}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:.6rem;margin-bottom:.9rem}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:.7rem .8rem;cursor:pointer;user-select:none}
+.kpi.on{outline:2px solid var(--primary);border-color:var(--primary)}
+.kpi b{display:block;font-size:1.6rem;line-height:1.1;font-variant-numeric:tabular-nums}
+.kpi span{font-size:.85rem;color:var(--muted)}
+.kpi.warn b{color:var(--warn)}.kpi.danger b{color:var(--danger)}.kpi.ok b{color:var(--ok)}.kpi.info b{color:var(--primary-d)}
 .chips{display:flex;flex-wrap:wrap;gap:.4rem}
 .chip{border:1px solid var(--border);background:var(--surface2);color:var(--text2);border-radius:999px;padding:.35rem .8rem;font-size:.92rem;cursor:pointer;user-select:none}
 .chip.on{background:var(--primary);color:#fff;border-color:var(--primary)}
@@ -46,6 +53,9 @@ tr.sel{outline:2px solid var(--primary)}
 .st-ok{background:var(--ok-soft);color:var(--ok)}
 .st-no{background:var(--danger-soft);color:var(--danger)}
 .st-q{background:var(--danger-soft);color:var(--danger)}
+.flag{display:inline-block;padding:.05rem .4rem;border-radius:6px;font-size:.75rem;font-weight:600;margin-left:.25rem;white-space:nowrap}
+.flag-exp{background:var(--warn-soft);color:var(--warn)}
+.flag-over{background:var(--danger-soft);color:var(--danger)}
 .note{font-size:.85rem;color:var(--muted)}
 .toast{position:fixed;top:4.2rem;left:50%;transform:translateX(-50%);background:var(--ok);color:#fff;padding:.7rem 1.1rem;border-radius:10px;font-size:1rem;z-index:9;box-shadow:0 4px 14px rgba(0,0,0,.2);max-width:90vw}
 .toast.err{background:var(--danger)}
@@ -53,6 +63,11 @@ tr.sel{outline:2px solid var(--primary)}
 .hid{display:none}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.6rem}
 .kv{font-size:.95rem}.kv b{color:var(--muted);font-weight:600;margin-right:.3rem}
+.tl{list-style:none;padding:0;margin:.4rem 0 0;font-size:.9rem}
+.tl li{padding:.25rem 0 .25rem 1rem;border-left:2px solid var(--border);position:relative}
+.tl li:before{content:"";position:absolute;left:-5px;top:.6rem;width:8px;height:8px;border-radius:50%;background:var(--primary)}
+.tl small{color:var(--muted)}
+.req{font-size:.85rem;color:var(--warn);min-height:1.2em}
 dialog{border:0;border-radius:var(--radius);padding:1rem;max-width:520px;width:92vw}
 dialog::backdrop{background:rgba(0,0,0,.35)}
 @media (max-width:640px){.hide-sm{display:none}}
@@ -78,19 +93,26 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
 </main>
 
 <main id="app" class="hid">
+  <div class="kpis" id="kpis">
+    <div class="kpi warn" data-f="待送"><b id="k-wait">0</b><span>待送</span></div>
+    <div class="kpi info" data-f="已送審"><b id="k-sent">0</b><span>已送審</span></div>
+    <div class="kpi danger" data-f="補件"><b id="k-q">0</b><span>補件</span></div>
+    <div class="kpi warn" data-f="expiring"><b id="k-exp">0</b><span>即將到期</span></div>
+    <div class="kpi danger" data-f="overdue"><b id="k-over">0</b><span>逾期</span></div>
+  </div>
   <div class="card">
     <div class="row">
       <div class="chips" id="filters" style="flex:3">
-        <span class="chip on" data-f="待送">待送</span><span class="chip" data-f="已送審">已送審</span><span class="chip" data-f="補件">補件</span><span class="chip" data-f="核准">核准</span><span class="chip" data-f="">全部</span>
+        <span class="chip on" data-f="待送">待送</span><span class="chip" data-f="已送審">已送審</span><span class="chip" data-f="補件">補件</span><span class="chip" data-f="核准">核准</span><span class="chip" data-f="駁回">駁回</span><span class="chip" data-f="結案">結案</span><span class="chip" data-f="">全部</span>
       </div>
-      <input type="search" id="q" placeholder="搜病歷號 / 藥物" style="flex:2">
+      <input type="search" id="q" placeholder="搜病歷號 / 姓名 / 藥物" style="flex:2">
       <button class="btn2" id="btnReload" style="flex:0 0 auto">重新整理</button>
     </div>
-    <div class="note" id="status" style="margin-top:.4rem">每 60 秒自動更新；新案件以黃底標示。</div>
+    <div class="note" id="status" style="margin-top:.4rem">每 60 秒自動更新；新案黃底。即將到期＝有效期 30 天內；逾期＝已送審超過 14 天未回覆。</div>
   </div>
 
   <div class="card" style="overflow-x:auto">
-    <table id="tbl"><thead><tr><th>#</th><th>登錄</th><th>病歷號</th><th class="hide-sm">姓名</th><th>藥物</th><th>類型</th><th class="hide-sm">癌別</th><th>狀態</th><th class="hide-sm">有效期至</th></tr></thead><tbody></tbody></table>
+    <table id="tbl"><thead><tr><th>#</th><th>登錄</th><th>病歷號</th><th class="hide-sm">姓名</th><th>藥物</th><th>類型</th><th class="hide-sm">癌別</th><th>狀態</th><th class="hide-sm">送審日</th><th class="hide-sm">有效期至</th><th></th></tr></thead><tbody></tbody></table>
   </div>
 
   <div class="card hid" id="edit">
@@ -101,10 +123,14 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
       <div><label class="l">狀態</label><select id="eStatus"><option>待送</option><option>已送審</option><option>補件</option><option>核准</option><option>駁回</option><option>結案</option></select></div>
       <div><label class="l">送審日</label><input type="date" id="eSent"></div>
       <div><label class="l">有效期至</label><input type="date" id="eValid"></div>
-      <div><label class="l">結果</label><input type="text" id="eResult" placeholder="核准文號 / 駁回理由"></div>
+      <div><label class="l">結果</label><input type="text" id="eResult" placeholder="核准文號 / 駁回理由 / 需補文件"></div>
     </div>
+    <div class="req" id="eReq"></div>
     <label class="l">行政備註</label><textarea id="eMemo" rows="2"></textarea>
     <div class="row" style="margin-top:.6rem"><span class="note" id="eMeta"></span><button class="btn" id="eSave" style="flex:0 0 auto">儲存</button></div>
+    <hr style="border:0;border-top:1px solid var(--border);margin:.8rem 0">
+    <b style="font-size:.95rem">歷程</b>
+    <ul class="tl" id="eHist"><li class="note">載入中…</li></ul>
   </div>
 </main>
 
@@ -118,6 +144,8 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
 <script>
 var DEFAULT_GAS_URL = "https://script.google.com/macros/s/AKfycbxjLokGZU17DEE82c-RrMfvWUxdcuZwPdOpNu10JJPloZgmWvYezB42Yy2I3uN6PCyU/exec";
 var DEFAULT_SECRET  = "2538b879d4b2f697";
+var EXPIRE_DAYS = 30, OVERDUE_DAYS = 14;
+var REQUIRED = {"已送審":["送審日"], "核准":["有效期至 或 結果"], "駁回":["結果"], "補件":["結果（需補什麼）"]};
 var LS = {get:function(k,d){try{var v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set:function(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},del:function(k){try{localStorage.removeItem(k)}catch(e){}}};
 var cfg = LS.get('nhirx.cfg',{});
 function gasUrl(){return cfg.url||DEFAULT_GAS_URL}
@@ -129,8 +157,13 @@ var rows=[], filter='待送', selected=null, timer=null, lastSeen=LS.get('nhirx.
 
 function post(body){return fetch(gasUrl(),{method:'POST',body:JSON.stringify(body),headers:{'Content-Type':'text/plain;charset=utf-8'}}).then(function(r){return r.text()}).then(function(t){try{return JSON.parse(t)}catch(e){throw new Error('回應非 JSON')}})}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
-var tt;function toast(m,k){var t=document.createElement('div');t.className='toast'+(k?' '+k:'');t.textContent=m;document.body.appendChild(t);setTimeout(function(){t.remove()},k==='err'?5000:3000)}
+function toast(m,k){var t=document.createElement('div');t.className='toast'+(k?' '+k:'');t.textContent=m;document.body.appendChild(t);setTimeout(function(){t.remove()},k==='err'?5000:3000)}
 function stClass(s){return s==='待送'?'st-wait':s==='已送審'?'st-sent':/核准|結案/.test(s)?'st-ok':/駁回/.test(s)?'st-no':/補件/.test(s)?'st-q':''}
+function today(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function daysFrom(iso){if(!iso)return null;var d=new Date(iso+'T00:00:00');if(isNaN(d))return null;return Math.round((d-new Date().setHours(0,0,0,0))/86400000)}
+function expiring(r){if(r.status!=='核准'||!r.valid)return null;var n=daysFrom(r.valid);return (n!==null&&n<=EXPIRE_DAYS)?n:null}
+function overdue(r){if(r.status!=='已送審'||!r.sent)return null;var m=daysFrom(r.sent);return (m!==null&&-m>OVERDUE_DAYS)?-m:null}
+function flags(r){var f=[];var e=expiring(r);if(e!==null)f.push('<span class="flag flag-exp">'+(e<0?'已到期':'到期 '+e+'天')+'</span>');var o=overdue(r);if(o!==null)f.push('<span class="flag flag-over">逾期 '+o+'天</span>');return f.join('')}
 
 /* ---- login ---- */
 function showApp(){$('#login').classList.add('hid');$('#app').classList.remove('hid');$('#btnLogout').classList.remove('hid');$('#who').textContent=sess.name;load();if(timer)clearInterval(timer);timer=setInterval(load,60000)}
@@ -151,16 +184,18 @@ $('#btnLogout').onclick=function(){sess=null;LS.del('nhirx.admin');if(timer)clea
 function load(){
   if(!sess)return;
   $('#status').textContent='載入中…';
-  post({action:'list',secret:secret(),limit:300}).then(function(r){
+  post({action:'list',secret:secret(),limit:500}).then(function(r){
     if(r.status!=='ok')throw new Error(r.message||'讀取失敗');
     var prevMax=rows.length?Math.max.apply(null,rows.map(function(x){return Number(x.id)||0})):lastSeen;
     rows=r.rows;
     var maxId=rows.length?Math.max.apply(null,rows.map(function(x){return Number(x.id)||0})):0;
     var fresh=rows.filter(function(x){return Number(x.id)>lastSeen});
-    var wait=rows.filter(function(x){return x.status==='待送'}).length;
-    $('#badge').textContent=wait;$('#badge').classList.toggle('hid',!wait);
-    document.title=(wait?'('+wait+') ':'')+'健保申請 行政清單';
-    $('#status').textContent='共 '+rows.length+' 筆，待送 '+wait+' 筆'+(fresh.length?'，新案 '+fresh.length+' 筆':'')+'　更新 '+new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});
+    var cnt={wait:0,sent:0,q:0,exp:0,over:0};
+    rows.forEach(function(x){if(x.status==='待送')cnt.wait++;if(x.status==='已送審')cnt.sent++;if(x.status==='補件')cnt.q++;if(expiring(x)!==null)cnt.exp++;if(overdue(x)!==null)cnt.over++});
+    $('#k-wait').textContent=cnt.wait;$('#k-sent').textContent=cnt.sent;$('#k-q').textContent=cnt.q;$('#k-exp').textContent=cnt.exp;$('#k-over').textContent=cnt.over;
+    $('#badge').textContent=cnt.wait;$('#badge').classList.toggle('hid',!cnt.wait);
+    document.title=(cnt.wait?'('+cnt.wait+') ':'')+'健保申請 行政清單';
+    $('#status').textContent='共 '+rows.length+' 筆'+(fresh.length?'，新案 '+fresh.length+' 筆':'')+'　更新 '+new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});
     if(fresh.length&&maxId>prevMax&&prevMax>0)notifyNew(fresh);
     render();
   }).catch(function(e){$('#status').textContent='讀取失敗：'+e.message});
@@ -170,33 +205,61 @@ function notifyNew(list){
   toast(msg,'warn');
   try{if(window.Notification&&Notification.permission==='granted')new Notification('健保事前審查 新案',{body:msg})}catch(e){}
 }
+function urgency(r){return overdue(r)!==null?0:expiring(r)!==null?1:r.status==='待送'?2:r.status==='補件'?3:r.status==='已送審'?4:5}
 function render(){
   var q=$('#q').value.trim().toLowerCase();var tb=$('#tbl tbody');tb.innerHTML='';
-  rows.filter(function(x){return (!filter||x.status===filter)&&(!q||String(x.mrn).indexOf(q)>=0||String(x.drugs).toLowerCase().indexOf(q)>=0||String(x.name||'').indexOf(q)>=0)})
-  .forEach(function(x){var tr=document.createElement('tr');tr.className='r'+(Number(x.id)>lastSeen?' new':'')+(selected&&selected.id==x.id?' sel':'');
-    tr.innerHTML='<td>'+esc(x.id)+'</td><td>'+esc(String(x.ts||'').slice(5,10))+'</td><td><b>'+esc(x.mrn)+'</b></td><td class="hide-sm">'+esc(x.name)+'</td><td>'+esc(x.drugs)+'</td><td>'+esc(x.type)+'</td><td class="hide-sm">'+esc(x.cancer)+'</td><td><span class="st '+stClass(x.status)+'">'+esc(x.status)+'</span></td><td class="hide-sm">'+esc(x.valid)+'</td>';
+  var list=rows.filter(function(x){
+    var okF=filter==='expiring'?expiring(x)!==null:filter==='overdue'?overdue(x)!==null:(!filter||x.status===filter);
+    return okF&&(!q||String(x.mrn).indexOf(q)>=0||String(x.drugs).toLowerCase().indexOf(q)>=0||String(x.name||'').indexOf(q)>=0)});
+  list.sort(function(a,b){var u=urgency(a)-urgency(b);if(u)return u;return (filter==='待送'||filter==='補件')?Number(a.id)-Number(b.id):Number(b.id)-Number(a.id)});
+  list.forEach(function(x){var tr=document.createElement('tr');tr.className='r'+(Number(x.id)>lastSeen?' new':'')+(selected&&selected.id==x.id?' sel':'');
+    var act=x.status==='待送'?'<button class="btnR" data-quick="'+esc(x.id)+'">今日已送審</button>':'';
+    tr.innerHTML='<td>'+esc(x.id)+'</td><td>'+esc(String(x.ts||'').slice(5,10))+'</td><td><b>'+esc(x.mrn)+'</b></td><td class="hide-sm">'+esc(x.name)+'</td><td>'+esc(x.drugs)+(x.parent_id?'<br><small class="note">續用自 #'+esc(x.parent_id)+'</small>':'')+'</td><td>'+esc(x.type)+'</td><td class="hide-sm">'+esc(x.cancer)+'</td><td><span class="st '+stClass(x.status)+'">'+esc(x.status)+'</span>'+flags(x)+'</td><td class="hide-sm">'+esc(x.sent)+'</td><td class="hide-sm">'+esc(x.valid)+'</td><td>'+act+'</td>';
     tr.onclick=function(){openEdit(x)};tb.appendChild(tr)});
-  if(!tb.children.length)tb.innerHTML='<tr><td colspan="9" class="note">沒有符合的案件</td></tr>';
+  if(!tb.children.length)tb.innerHTML='<tr><td colspan="11" class="note">沒有符合的案件</td></tr>';
+  tb.querySelectorAll('[data-quick]').forEach(function(b){b.onclick=function(e){e.stopPropagation();quickSent(Number(b.dataset.quick),b)}});
+  document.querySelectorAll('#filters .chip').forEach(function(c){c.classList.toggle('on',c.dataset.f===filter)});
+  document.querySelectorAll('#kpis .kpi').forEach(function(c){c.classList.toggle('on',c.dataset.f===filter)});
 }
-document.querySelectorAll('#filters .chip').forEach(function(c){c.onclick=function(){filter=c.dataset.f;document.querySelectorAll('#filters .chip').forEach(function(x){x.classList.toggle('on',x===c)});render()}});
+function setFilter(f){filter=f;render()}
+document.querySelectorAll('#filters .chip').forEach(function(c){c.onclick=function(){setFilter(c.dataset.f)}});
+document.querySelectorAll('#kpis .kpi').forEach(function(c){c.onclick=function(){setFilter(c.dataset.f)}});
 $('#q').oninput=render;
 $('#btnReload').onclick=load;
 
+function quickSent(id,btn){
+  btn.disabled=true;
+  post({action:'update',secret:secret(),admin_code:sess.code,admin:sess.name,id:id,'狀態':'已送審','送審日':today()})
+  .then(function(r){if(r.status!=='ok')throw new Error(r.message||'失敗');toast('#'+id+' 已標記今日送審');load()})
+  .catch(function(e){toast(e.message,'err');btn.disabled=false});
+}
+
 /* ---- edit ---- */
+function reqHint(){var s=$('#eStatus').value;var r=REQUIRED[s];$('#eReq').textContent=r?('「'+s+'」需填：'+r.join('、')):''}
+$('#eStatus').onchange=reqHint;
 function openEdit(x){
   selected=x;$('#edit').classList.remove('hid');
   $('#eTitle').textContent='#'+x.id+'　病歷號 '+x.mrn+(x.name?'　'+x.name:'')+'　'+x.drugs+'（'+x.type+'）';
-  $('#eInfo').innerHTML=['登錄 '+x.ts,'癌別 '+(x.cancer||'—'),'登錄醫師 '+(x.doctor||'—'),'醫師備註 '+(x.memo||'—')].map(function(s){return '<div class="kv">'+esc(s)+'</div>'}).join('');
-  $('#eStatus').value=x.status||'待送';$('#eSent').value=x.sent||'';$('#eValid').value=x.valid||'';$('#eResult').value=x.result||'';$('#eMemo').value=x.admin_memo||'';
+  var info=['登錄 '+x.ts,'癌別 '+(x.cancer||'—'),'登錄醫師 '+(x.doctor||'—'),'醫師備註 '+(x.memo||'—')];
+  if(x.parent_id)info.push('續用自 #'+x.parent_id);
+  $('#eInfo').innerHTML=info.map(function(s){return '<div class="kv">'+esc(s)+'</div>'}).join('');
+  if(x.parent_id){var pl=document.createElement('button');pl.className='btn2';pl.textContent='開啟 #'+x.parent_id;pl.onclick=function(){var p=rows.filter(function(r){return String(r.id)===String(x.parent_id)})[0];if(p)openEdit(p)};$('#eInfo').lastChild.appendChild(document.createTextNode(' '));$('#eInfo').lastChild.appendChild(pl)}
+  $('#eStatus').value=x.status||'待送';$('#eSent').value=x.sent||'';$('#eValid').value=x.valid||'';$('#eResult').value=x.result||'';$('#eMemo').value=x.admin_memo||'';reqHint();
   $('#eMeta').textContent=x.updated_by?('上次更新：'+x.updated_by+' '+x.updated_at):'';
   if(Number(x.id)>lastSeen){lastSeen=Number(x.id);LS.set('nhirx.admin.lastSeen',lastSeen)}
   render();$('#edit').scrollIntoView({behavior:'smooth',block:'nearest'});
+  $('#eHist').innerHTML='<li class="note">載入中…</li>';
+  post({action:'history',secret:secret(),id:x.id}).then(function(r){
+    if(r.status!=='ok')throw new Error(r.message||'');
+    if(!r.rows.length){$('#eHist').innerHTML='<li class="note">無歷程紀錄</li>';return}
+    $('#eHist').innerHTML=r.rows.map(function(h){return '<li>'+(h.from?esc(h.from)+' → ':'建立 → ')+'<b>'+esc(h.to)+'</b>'+(h.fields?' <small>('+esc(h.fields)+')</small>':'')+'<br><small>'+esc(h.ts)+'　'+esc(h.who)+'</small></li>'}).join('');
+  }).catch(function(){$('#eHist').innerHTML='<li class="note">此後端版本無歷程功能</li>'});
 }
 $('#eClose').onclick=function(){selected=null;$('#edit').classList.add('hid');render()};
 $('#eSave').onclick=function(){
   if(!selected)return;$('#eSave').disabled=true;
   var p={action:'update',secret:secret(),admin_code:sess.code,admin:sess.name,id:selected.id,'狀態':$('#eStatus').value,'送審日':$('#eSent').value,'結果':$('#eResult').value.trim(),'有效期至':$('#eValid').value,'行政備註':$('#eMemo').value.trim()};
-  post(p).then(function(r){if(r.status!=='ok')throw new Error(r.message||'儲存失敗');toast('已儲存 #'+selected.id+'　'+p['狀態']);selected=null;$('#edit').classList.add('hid');load()})
+  post(p).then(function(r){if(r.status!=='ok')throw new Error(r.missing?('缺少：'+r.missing.join('、')):(r.message||'儲存失敗'));toast('已儲存 #'+selected.id+'　'+p['狀態']);selected=null;$('#edit').classList.add('hid');load()})
   .catch(function(e){toast(e.message,'err')}).finally(function(){$('#eSave').disabled=false});
 };
 
