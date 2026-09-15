@@ -440,19 +440,24 @@ function capFindBand(img){
   }
   if(cur) bands.push(cur);
   if(!bands.length) return {err:'no_header'};
-  bands.sort(function(a,b){ return b.sum-a.sum });
-  var best = bands[0];
-  var textHs = best.y1-best.y0+1;                      // 縮圖尺度
-  var padS = Math.round(textHs*0.35)+3;
-  /* 回推到原圖座標，於原生解析度裁切 */
-  var inv = 1/sc;
-  var oy0 = Math.max(0, Math.round((best.y0-padS)*inv));
-  var oy1 = Math.min(img.height, Math.round((best.y1+padS)*inv));
-  var obh = Math.max(1, oy1-oy0);
-  var obw = Math.round(img.width*0.55);               // 病歷號在姓名之後的左半，右半是生日與流水號
-  var band = document.createElement('canvas'); band.width=obw; band.height=obh;
-  band.getContext('2d').drawImage(img, 0,oy0,obw,obh, 0,0,obw,obh);
-  return {canvas:band, rawTextH: Math.round(textHs*inv), bands:bands.length};
+  /* ⚠️ 不可取「黃色最多」的那條：HIS 的診斷欄也是藍綠底黃字，而且通常比標題列更長更多欄，
+     取最大會抓到診斷欄、裡面根本沒有病歷號。病歷號那行永遠在最上面，因此由上往下逐條試。 */
+  bands.sort(function(a,b){ return a.y0-b.y0 });
+  var inv = 1/sc, obw = Math.round(img.width*0.55);   // 病歷號在姓名之後的左半，右半是生日與流水號
+  var outs = [];
+  for(var bi=0; bi<bands.length && outs.length<3; bi++){
+    var bd = bands[bi], textHs = bd.y1-bd.y0+1;
+    if(textHs < 3) continue;
+    var padS = Math.round(textHs*0.35)+3;
+    var oy0 = Math.max(0, Math.round((bd.y0-padS)*inv));
+    var oy1 = Math.min(img.height, Math.round((bd.y1+padS)*inv));
+    var obh = Math.max(1, oy1-oy0);
+    var c = document.createElement('canvas'); c.width=obw; c.height=obh;
+    c.getContext('2d').drawImage(img, 0,oy0,obw,obh, 0,0,obw,obh);
+    outs.push({canvas:c, rawTextH: Math.round(textHs*inv)});
+  }
+  if(!outs.length) return {err:'no_header'};
+  return {list:outs, canvas:outs[0].canvas, rawTextH:outs[0].rawTextH, bands:bands.length};
 }
 /* 黃字轉成深字白底，指定高度，可選模糊（壓 LCD 網點） */
 function capPrep(band, blur, targetH){
@@ -485,8 +490,8 @@ function capExtract(text){
   re=/\d{5,10}/g; while((m=re.exec(text))) if(!paren[m[0]]) any.push(m[0]);
   return {br:br, any:any};
 }
-function capAnalyse(band){
-  var variants=[[0,110],[0,150],[0.6,150],[1.0,150],[0,200],[1.2,200]];
+function capAnalyse(band, variants){
+  variants = variants || [[0,110],[0,150],[0.6,150],[1.0,150],[0,200],[1.2,200]];
   return capWorker().then(function(w){
     var seq=Promise.resolve(), brVotes={}, anyVotes={};
     variants.forEach(function(v){
@@ -517,17 +522,32 @@ function capHandle(file){
       capFail('沒抓到病歷號那一行。請把畫面<b>最上方那條藍綠底、黃色字</b>的列拍進去（含方括號內的號碼）。');
       return;
     }
+    var cands=(b.list||[{canvas:b.canvas,rawTextH:b.rawTextH}]).filter(function(x){return x.rawTextH>=CAP.HARD_MIN_TEXT_H});
     $('#capBand').classList.remove('hid');
-    $('#capBand').src=b.canvas.toDataURL('image/png');
-    CAP.lastTextH=b.rawTextH;
-    if(b.rawTextH < CAP.HARD_MIN_TEXT_H){
-      capFail('病歷號那一行只有 '+b.rawTextH+'px 高，太小無法辨識。手機請<b>靠近</b>拍；電腦截圖請<b>放大 HIS 視窗</b>再截。');
+    $('#capBand').src=(cands[0]||b.list[0]).canvas.toDataURL('image/png');
+    CAP.lastTextH=(cands[0]||b.list[0]).rawTextH;
+    if(!cands.length){
+      capFail('偵測到的文字只有 '+CAP.lastTextH+'px 高，太小無法辨識。手機請<b>靠近</b>拍；電腦截圖前請先<b>放大畫面</b>再截。');
       return;
     }
     capSay('辨識中…');
-    capAnalyse(b.canvas).then(function(res){
-      var lenOk = res.mrn && res.mrn.length>=CAP.MIN_DIGITS && res.mrn.length<=CAP.MAX_DIGITS;
-      var solid = lenOk && res.agree>=CAP.MIN_AGREE && (!CAP.NO_DISSENT || res.dissent===0);
+    /* 由上往下逐條嘗試：第一條通常就是病歷號那行，不過則往下試診斷欄之外的其他橫帶 */
+    var tried=0;
+    var tryNext=function(i){
+      if(i>=cands.length) return Promise.resolve(null);
+      tried=i+1;
+      return capAnalyse(cands[i].canvas).then(function(r){
+        var lenOk=r.mrn && r.mrn.length>=CAP.MIN_DIGITS && r.mrn.length<=CAP.MAX_DIGITS;
+        if(lenOk && r.agree>=CAP.MIN_AGREE && (!CAP.NO_DISSENT || r.dissent===0)){
+          $('#capBand').src=cands[i].canvas.toDataURL('image/png');
+          CAP.lastTextH=cands[i].rawTextH; r.hit=true; return r;
+        }
+        return tryNext(i+1).then(function(nxt){ return nxt || r });
+      });
+    };
+    tryNext(0).then(function(res){
+      res = res || {mrn:'', agree:0, dissent:0, seen:[], loose:[]};
+      var solid = !!res.hit;
       if(solid){
         /* 讀得夠穩也不直接填：病歷號填錯等於掛錯病人，一律要醫師對照畫面按一次確認 */
         CAP.pending=res.mrn; $('#capConfirm').classList.remove('hid');
@@ -535,13 +555,13 @@ function capHandle(file){
         CAP.tries=0;
       } else {
         CAP.pending=''; $('#capConfirm').classList.add('hid');
-        var hint = !res.mrn ? '沒有在方括號內讀到號碼。'
-                 : (res.dissent>0 ? '四組辨識結果<b>不一致</b>（'+esc(res.mrn)+' 只得 '+res.agree+' 票），不可靠。'
+        var hint = !res.mrn ? '在偵測到的 '+cands.length+' 條標題列裡，都沒有在方括號內讀到號碼。'
+                 : (res.dissent>0 ? '辨識結果<b>不一致</b>（'+esc(res.mrn)+' 只得 '+res.agree+' 票），不可靠。'
                                   : '只有 '+res.agree+' 組結果一致（需 '+CAP.MIN_AGREE+' 組），不夠可靠。');
         var how = (CAP.lastTextH && CAP.lastTextH < CAP.SMALL_TEXT_H)
           ? '字太小（'+CAP.lastTextH+'px，建議 12px 以上）。截圖前先放大畫面：遠端桌面請調高解析度或用 Windows 放大鏡（按 ⊞ 和 +）放到 150～200% 再截；手機請靠近拍。'
           : '請重拍：手機與螢幕<b>平行</b>、更靠近、避開反光與手震。<br>用電腦 <b>Win+Shift+S</b> 截圖再貼上最準。';
-        var diag = '<br><span style="font-size:.8rem;opacity:.8">診斷：文字高 '+(CAP.lastTextH||'?')+'px'
+        var diag = '<br><span style="font-size:.8rem;opacity:.8">診斷：試了 '+tried+'/'+cands.length+' 條橫帶，文字高 '+(CAP.lastTextH||'?')+'px'
                  + (res.seen&&res.seen.length ? '；括號內讀到 '+esc(res.seen.join('、')) : '；括號內沒讀到數字')
                  + (res.loose&&res.loose.length ? '；其他數字 '+esc(res.loose.join('、')) : '') + '</span>';
         capFail(hint+'為避免填錯病人，<b>不會自動填入</b>。<br>'+how+diag);
