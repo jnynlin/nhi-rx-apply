@@ -383,8 +383,10 @@ function toast(m,k){var t=document.createElement('div');t.className='toast'+(k?'
 var CAP = {
   /* 文字高度只當診斷用，不當硬性門檻：手機拍照的字在畫面中很大(60-130px)，
      電腦截圖的字在像素上很小(15-22px)卻銳利且辨識率更高。真正的把關是下面的票數一致性。 */
-  HARD_MIN_TEXT_H: 10, // 原生解析度下低於此完全無法辨識，直接請重拍
-  SMALL_TEXT_H: 14,    // 低於此且辨識失敗時才提示「靠近／放大」
+  /* 實測：原生 9px 的清晰截圖仍可讀對（6 組中 3 組以上一致），8px 以下才真的讀不出來。
+     把關交給票數一致性，尺寸只擋顯然無望的，不要提前拒絕還有機會的影像。 */
+  HARD_MIN_TEXT_H: 7,  // 低於此完全無法辨識，直接請重拍
+  SMALL_TEXT_H: 12,    // 低於此且辨識失敗時才提示「放大再截圖」
   MIN_AGREE: 3,        // 六組前處理中至少幾組在方括號內讀到「相同」數字
   NO_DISSENT: true,    // 且不得有其他組讀到不同數字
   MIN_DIGITS: 5, MAX_DIGITS: 10,
@@ -537,7 +539,7 @@ function capHandle(file){
                  : (res.dissent>0 ? '四組辨識結果<b>不一致</b>（'+esc(res.mrn)+' 只得 '+res.agree+' 票），不可靠。'
                                   : '只有 '+res.agree+' 組結果一致（需 '+CAP.MIN_AGREE+' 組），不夠可靠。');
         var how = (CAP.lastTextH && CAP.lastTextH < CAP.SMALL_TEXT_H)
-          ? '字偏小（'+CAP.lastTextH+'px）。請<b>靠近</b>拍，或把 HIS 視窗放大再截圖。'
+          ? '字太小（'+CAP.lastTextH+'px，建議 12px 以上）。截圖前先放大畫面：遠端桌面請調高解析度或用 Windows 放大鏡（按 ⊞ 和 +）放到 150～200% 再截；手機請靠近拍。'
           : '請重拍：手機與螢幕<b>平行</b>、更靠近、避開反光與手震。<br>用電腦 <b>Win+Shift+S</b> 截圖再貼上最準。';
         var diag = '<br><span style="font-size:.8rem;opacity:.8">診斷：文字高 '+(CAP.lastTextH||'?')+'px'
                  + (res.seen&&res.seen.length ? '；括號內讀到 '+esc(res.seen.join('、')) : '；括號內沒讀到數字')
