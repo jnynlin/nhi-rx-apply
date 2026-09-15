@@ -383,9 +383,9 @@ function toast(m,k){var t=document.createElement('div');t.className='toast'+(k?'
 var CAP = {
   /* 文字高度只當診斷用，不當硬性門檻：手機拍照的字在畫面中很大(60-130px)，
      電腦截圖的字在像素上很小(15-22px)卻銳利且辨識率更高。真正的把關是下面的票數一致性。 */
-  HARD_MIN_TEXT_H: 11, // 低於此完全無法辨識，直接請重拍
-  SMALL_TEXT_H: 15,    // 低於此且辨識失敗時才提示「靠近／放大」（截圖在 16-22px 就已辨識良好）
-  MIN_AGREE: 3,        // 四組前處理中至少幾組在方括號內讀到「相同」數字
+  HARD_MIN_TEXT_H: 10, // 原生解析度下低於此完全無法辨識，直接請重拍
+  SMALL_TEXT_H: 14,    // 低於此且辨識失敗時才提示「靠近／放大」
+  MIN_AGREE: 3,        // 六組前處理中至少幾組在方括號內讀到「相同」數字
   NO_DISSENT: true,    // 且不得有其他組讀到不同數字
   MIN_DIGITS: 5, MAX_DIGITS: 10,
   worker: null, tries: 0, busy: false, pending: ''
@@ -403,48 +403,54 @@ function capSay(msg, kind){
   v.className = kind==='ok' ? 'cap-ok' : (kind==='bad' ? 'cap-bad' : 'note');
   v.innerHTML = msg;
 }
-/* 找出上方藍綠色標題列裡的黃色字（病歷號那一行），回傳裁切後的 canvas 與品質指標 */
+/* 找出藍綠色標題列裡的黃色字（病歷號那一行）。
+   定位用縮圖（快），但裁切一律回原圖的原生解析度——縮圖裁切會先把筆畫細節丟掉，
+   這正是最初實驗 2/12 的原因，不可重蹈。 */
 function capFindBand(img){
-  var W = 1600, sc = W/img.width;   // 一律換算到固定工作寬度，門檻才不受來源解析度影響
+  var W = Math.min(1600, img.width), sc = W/img.width;   // 只縮不放，供定位用
   var cw = Math.round(img.width*sc), ch = Math.round(img.height*sc);
-  var full = document.createElement('canvas'); full.width=cw; full.height=ch;
-  full.getContext('2d').drawImage(img,0,0,cw,ch);
-  /* 先找上方 40%（整個 HIS 視窗的截圖）；找不到再掃全圖（只框標題列的裁切截圖） */
-  var scan = function(y0r, hr){
-    var d = full.getContext('2d').getImageData(0,y0r,cw,hr), p = d.data;
-    var rc = new Int32Array(hr), mx = 0;
-    for(var y=0;y<hr;y++){
-      var n=0, base=y*cw*4;
-      for(var x=0;x<cw;x++){
-        var i=base+x*4, r=p[i], g=p[i+1], b=p[i+2];
-        if(r>140 && g>130 && b<130 && ((r+g)/2-b)>60) n++;
-      }
-      rc[y]=n; if(n>mx) mx=n;
+  var small = document.createElement('canvas'); small.width=cw; small.height=ch;
+  small.getContext('2d').drawImage(img,0,0,cw,ch);
+  var ctx = small.getContext('2d');
+  var d, p;
+  try { d = ctx.getImageData(0,0,cw,ch); p = d.data; }
+  catch(e){ return {err:'no_header'}; }
+  var rc = new Int32Array(ch), mx = 0;
+  for(var y=0;y<ch;y++){
+    var n=0, base=y*cw*4;
+    for(var x=0;x<cw;x++){
+      var i=base+x*4, r=p[i], g=p[i+1], b=p[i+2];
+      if(r>140 && g>130 && b<130 && ((r+g)/2-b)>60) n++;
     }
-    return {rc:rc, max:mx, off:y0r, h:hr};
-  };
-  var s = scan(Math.round(ch*0.02), Math.round(ch*0.38));
-  if(s.max < 8) s = scan(0, ch);
-  var y0r = s.off, hr = s.h, rowCount = s.rc, maxRow = s.max;
-  if(maxRow < 8) return {err:'no_header'};
-  var thr = maxRow*0.2, first=-1, last=-1;
-  for(var y=0;y<hr;y++){
-    if(rowCount[y]>thr){
-      if(first<0){first=y; last=y;}
-      else if(y-last<=Math.max(6,Math.round(ch*0.01))) last=y;
-      else break;
+    rc[y]=n; if(n>mx) mx=n;
+  }
+  if(mx < 8) return {err:'no_header'};
+  /* 收集所有黃字橫帶，取「黃色像素總量最大」的那一帶：病歷號那一行最長。
+     取第一帶會被工具列或其他視窗的黃色元素騙走。 */
+  var thr = mx*0.25, gapTol = Math.max(3, Math.round(ch*0.006));
+  var bands=[], cur=null;
+  for(var y=0;y<ch;y++){
+    if(rc[y]>thr){
+      if(!cur) cur={y0:y,y1:y,sum:rc[y]};
+      else if(y-cur.y1<=gapTol){ cur.y1=y; cur.sum+=rc[y]; }
+      else { bands.push(cur); cur={y0:y,y1:y,sum:rc[y]}; }
     }
   }
-  if(first<0) return {err:'no_header'};
-  var textH = last-first+1;
-  var pad = Math.round(textH*0.35)+5;
-  var by = Math.max(0, y0r+first-pad), bh = Math.min(ch-by, textH+pad*2);
-  if(bh < 6) return {err:'no_header'};
-  var bw = Math.round(cw*0.52);   // 病歷號恆在姓名之後的左半，右半是生日與流水號
-  var band = document.createElement('canvas'); band.width=bw; band.height=bh;
-  band.getContext('2d').drawImage(full, 0,by,bw,bh, 0,0,bw,bh);
-  // 以原圖尺度回推文字高度，作為「拍太遠」判準
-  return {canvas:band, textH: Math.round(textH/sc*(W/Math.max(W,img.width))||textH), rawTextH:textH, scale:sc};
+  if(cur) bands.push(cur);
+  if(!bands.length) return {err:'no_header'};
+  bands.sort(function(a,b){ return b.sum-a.sum });
+  var best = bands[0];
+  var textHs = best.y1-best.y0+1;                      // 縮圖尺度
+  var padS = Math.round(textHs*0.35)+3;
+  /* 回推到原圖座標，於原生解析度裁切 */
+  var inv = 1/sc;
+  var oy0 = Math.max(0, Math.round((best.y0-padS)*inv));
+  var oy1 = Math.min(img.height, Math.round((best.y1+padS)*inv));
+  var obh = Math.max(1, oy1-oy0);
+  var obw = Math.round(img.width*0.55);               // 病歷號在姓名之後的左半，右半是生日與流水號
+  var band = document.createElement('canvas'); band.width=obw; band.height=obh;
+  band.getContext('2d').drawImage(img, 0,oy0,obw,obh, 0,0,obw,obh);
+  return {canvas:band, rawTextH: Math.round(textHs*inv), bands:bands.length};
 }
 /* 黃字轉成深字白底，指定高度，可選模糊（壓 LCD 網點） */
 function capPrep(band, blur, targetH){
@@ -478,7 +484,7 @@ function capExtract(text){
   return {br:br, any:any};
 }
 function capAnalyse(band){
-  var variants=[[0,120],[0.6,120],[0,150],[1.0,150]];
+  var variants=[[0,110],[0,150],[0.6,150],[1.0,150],[0,200],[1.2,200]];
   return capWorker().then(function(w){
     var seq=Promise.resolve(), brVotes={}, anyVotes={};
     variants.forEach(function(v){
@@ -489,9 +495,11 @@ function capAnalyse(band){
       }).catch(function(){});
     });
     return seq.then(function(){
-      var best='', n=0, total=0, distinct=0;
-      for(var d in brVotes){ total+=brVotes[d]; distinct++; if(brVotes[d]>n){best=d;n=brVotes[d]} }
-      return {mrn:best, agree:n, dissent: total-n, distinct:distinct, anyVotes:anyVotes};
+      var best='', n=0, total=0, seen=[];
+      for(var d in brVotes){ total+=brVotes[d]; seen.push(d+'×'+brVotes[d]); if(brVotes[d]>n){best=d;n=brVotes[d]} }
+      var loose=[]; for(var a in anyVotes) loose.push(a+'×'+anyVotes[a]);
+      loose.sort(function(x,y){ return Number(y.split('×')[1])-Number(x.split('×')[1]) });
+      return {mrn:best, agree:n, dissent: total-n, seen:seen, loose:loose.slice(0,4)};
     });
   });
 }
@@ -531,7 +539,10 @@ function capHandle(file){
         var how = (CAP.lastTextH && CAP.lastTextH < CAP.SMALL_TEXT_H)
           ? '字偏小（'+CAP.lastTextH+'px）。請<b>靠近</b>拍，或把 HIS 視窗放大再截圖。'
           : '請重拍：手機與螢幕<b>平行</b>、更靠近、避開反光與手震。<br>用電腦 <b>Win+Shift+S</b> 截圖再貼上最準。';
-        capFail(hint+'為避免填錯病人，<b>不會自動填入</b>。<br>'+how);
+        var diag = '<br><span style="font-size:.8rem;opacity:.8">診斷：文字高 '+(CAP.lastTextH||'?')+'px'
+                 + (res.seen&&res.seen.length ? '；括號內讀到 '+esc(res.seen.join('、')) : '；括號內沒讀到數字')
+                 + (res.loose&&res.loose.length ? '；其他數字 '+esc(res.loose.join('、')) : '') + '</span>';
+        capFail(hint+'為避免填錯病人，<b>不會自動填入</b>。<br>'+how+diag);
       }
     }).catch(function(e){ capFail('辨識失敗：'+esc(e.message||e)+'　可改用手動輸入。') })
     .finally(function(){ CAP.busy=false });
